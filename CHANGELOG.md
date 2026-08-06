@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.5
+
+- Added a complete conversation minimap with full-session previews, current-turn highlighting, distance-based hover expansion, and on-demand loading of older turns.
+- Grouped sessions by workspace folder with persistent collapsible state, folder status icons, and hover-revealed actions.
+- Improved edit tool previews with precise line-level diffs.
+
 ## 0.2.4
 
 - Added reusable draft sessions that initialize on the first prompt and preserve the new-session introduction.
