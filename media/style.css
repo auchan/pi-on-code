@@ -2290,6 +2290,10 @@ html.pi-viewport-recovering #pi-web-app {
   background: var(--pi-surface);
 }
 
+.edit-change .edit-context {
+  padding: 1px 6px;
+}
+
 .edit-change .edit-old {
   border-radius: 0;
   background: var(--vscode-diffEditor-removedLineBackground, rgb(230 126 128 / 12%));

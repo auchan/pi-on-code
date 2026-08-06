@@ -1,5 +1,6 @@
 import { state } from "../state.js";
 import { summarizeLineChanges } from "../../tool-change-summary.js";
+import { diffEditLines } from "../../edit-line-diff.js";
 import { selectToolOutputCopyText } from "../../tool-output-copy.js";
 import { logEvent } from "../debug.js";
 import {
@@ -447,7 +448,14 @@ export function renderEditPreviews(el: ToolEl, edits: Array<{ oldText: string; n
       var editHeader = edits.length > 1
         ? safe(html`<div class="edit-header">Edit ${i + 1} of ${edits.length}</div>`)
         : "";
-      result += html`<div class="edit-change">${editHeader}<div class="edit-old">- ${lang ? safe(highlightCode(oldText, lang)) : oldText}</div><div class="edit-new">+ ${lang ? safe(highlightCode(newText, lang)) : newText}</div></div>`;
+      var lineDiff = diffEditLines(oldText, newText);
+      var renderedLines = lineDiff.map(function (line) {
+        var className = line.type === "removed" ? "edit-old" : line.type === "added" ? "edit-new" : "edit-context";
+        var prefix = line.type === "removed" ? "-" : line.type === "added" ? "+" : " ";
+        var content = lang ? highlightCode(line.line, lang) : escapeHtml(line.line);
+        return html`<div class="${className}">${prefix} ${safe(content)}</div>`;
+      }).join("");
+      result += html`<div class="edit-change">${editHeader}${safe(renderedLines)}</div>`;
     }
 
     // Bound active streaming previews. Completed long edits use the shared
