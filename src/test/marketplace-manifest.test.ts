@@ -29,7 +29,7 @@ suite("Marketplace manifest", () => {
     assert.strictEqual(manifest.publisher, "auchan");
     assert.strictEqual(manifest.name, "pion-code");
     assert.strictEqual(manifest.displayName, "Pi / Code");
-    assert.strictEqual(manifest.version, "0.2.4");
+    assert.strictEqual(manifest.version, "0.2.5");
   });
 
   test("requires a trusted filesystem workspace", () => {
@@ -79,6 +79,7 @@ suite("Marketplace manifest", () => {
   test("excludes internal instructions and bundled library sources", () => {
     const ignore = readFileSync(ignorePath, "utf8");
     assert.match(ignore, /^AGENTS\.md$/m);
+    assert.match(ignore, /^\.github\/\*\*$/m);
     assert.match(ignore, /^media\/marked\.min\.js$/m);
     assert.match(ignore, /^media\/lib\/\*\*$/m);
   });
