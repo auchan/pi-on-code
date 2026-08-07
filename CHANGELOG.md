@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.6
+
+- Restored the top-right new-session action for single-folder workspaces while retaining refresh and per-folder creation controls for multi-folder workspaces.
+
 ## 0.2.5
 
 - Added a complete conversation minimap with full-session previews, current-turn highlighting, distance-based hover expansion, and on-demand loading of older turns.
