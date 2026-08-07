@@ -732,7 +732,7 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       <img class="pi-mark pi-mark-dark" src="${brandIconDarkUri}" alt="" aria-hidden="true">
       <img class="pi-mark pi-mark-light" src="${brandIconLightUri}" alt="" aria-hidden="true">
       <span class="wordmark">pi / code</span>
-      <button class="new-session" id="session-refresh" type="button" title="Refresh sessions" aria-label="Refresh sessions">↻</button>
+      <button class="new-session" id="session-action" type="button" title="New Pi session" aria-label="New Pi session">+ new</button>
     </header>
     <section aria-labelledby="sessions-heading">
       <div class="section-title" id="sessions-heading">sessions</div>
@@ -770,6 +770,7 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
     const packagesCount = document.getElementById("packages-count");
     const packageList = document.getElementById("package-list");
     const packageQuery = document.getElementById("package-query");
+    const sessionAction = document.getElementById("session-action");
     let currentState = null;
     let marketplaceRequested = false;
 
@@ -779,8 +780,9 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       vscode.setState(uiState);
     }
 
-    document.getElementById("session-refresh").addEventListener("click", () => {
-      vscode.postMessage({ type: "session-refresh" });
+    sessionAction.addEventListener("click", () => {
+      const multiRoot = Array.isArray(currentState?.directories) && currentState.directories.length > 1;
+      vscode.postMessage(multiRoot ? { type: "session-refresh" } : { type: "new" });
     });
     packagesToggle.addEventListener("click", () => {
       uiState.packagesExpanded = !uiState.packagesExpanded;
@@ -1153,6 +1155,10 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
 
     function render(state) {
       currentState = state;
+      const multiRoot = Array.isArray(state?.directories) && state.directories.length > 1;
+      sessionAction.textContent = multiRoot ? "↻" : "+ new";
+      sessionAction.title = multiRoot ? "Refresh sessions" : "New Pi session";
+      sessionAction.setAttribute("aria-label", sessionAction.title);
       renderSessions(Array.isArray(state?.sessions) ? state.sessions : [], Array.isArray(state?.directories) ? state.directories : [], state?.collapsedDirectories || {});
       renderPackages(state?.packages || {});
     }
