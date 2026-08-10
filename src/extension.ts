@@ -435,6 +435,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await vscode.env.clipboard.writeText(sessionId);
         vscode.window.showInformationMessage("Session ID copied to clipboard");
       },
+      forkSession: async (target) => {
+        if (target.kind === "open" && target.id) {
+          const session = sessions.find((candidate) => candidate.id === target.id);
+          const leafId = session?.piService.sessionManagerInstance?.getLeafId();
+          if (!session || !leafId) {
+            vscode.window.showErrorMessage("Cannot fork: session has no entries.");
+            return;
+          }
+          await vscode.commands.executeCommand("pi-on-code.forkSession", session.id, leafId);
+        } else if (target.kind === "past" && target.path) {
+          await vscode.commands.executeCommand("pi-on-code.forkSession", target.path);
+        }
+      },
       searchPackages: async (query) => {
         await packagesTreeProvider?.refreshAll(query);
       },
@@ -645,7 +658,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const tempPi = new PiService(context.secrets);
     let forkedPath: string;
     try {
-      const result = await tempPi.initialize({ openPath: sourcePath });
+      const result = await tempPi.initialize({ openPath: sourcePath, cwd: srcSw.cwd });
       if (!result.success) {
         throw new Error(`Cannot open source session: ${result.error}`);
       }
@@ -673,14 +686,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
 
     piLog(`doForkFromOpenEntry: forked to ${forkedPath}`);
-    await openForkedSession(forkedPath);
+    await openForkedSession(forkedPath, srcSw.cwd);
   }
 
   /** Fork a past session at its current leaf (opens the session, then forks). */
   async function doForkFromPastSession(sessionPath: string): Promise<void> {
+    const cwd = sessionTreeProvider?.pastSessions.find((session) => session.path === sessionPath)?.cwd ?? getWorkspaceCwd();
     // Initialize a new PiService to load the session and get leaf ID
     const tempPi = new PiService(context.secrets);
-    const result = await tempPi.initialize({ openPath: sessionPath });
+    const result = await tempPi.initialize({ openPath: sessionPath, cwd });
     if (!result.success) {
       throw new Error(`Cannot open past session: ${result.error}`);
     }
@@ -704,12 +718,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
     tempPi.dispose();
 
-    await openForkedSession(forkedPath ?? sessionPath);
+    await openForkedSession(forkedPath ?? sessionPath, cwd);
   }
 
   /** Create a new session window initialized from a forked session file. */
-  async function openForkedSession(forkedPath: string): Promise<void> {
-    const newSw = createSessionWindow(context, { path: forkedPath });
+  async function openForkedSession(forkedPath: string, cwd = getWorkspaceCwd()): Promise<void> {
+    const newSw = createSessionWindow(context, { path: forkedPath }, false, cwd);
     setActiveSession(newSw);
     void newSw.webviewPanel.show();
     sessionTreeProvider?.refresh();

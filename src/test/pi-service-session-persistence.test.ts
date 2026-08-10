@@ -2,6 +2,7 @@ import * as assert from "node:assert";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as vscode from "vscode";
 import { PiService } from "../pi-service.js";
 
 suite("PiService session persistence", () => {
@@ -13,6 +14,27 @@ suite("PiService session persistence", () => {
 
   teardown(() => {
     fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test("routes /fork to the active-session clone command", async () => {
+    const commands = vscode.commands as unknown as {
+      executeCommand: (...args: unknown[]) => Thenable<unknown>;
+    };
+    const original = commands.executeCommand;
+    const calls: unknown[][] = [];
+    commands.executeCommand = (...args: unknown[]) => {
+      calls.push(args);
+      return Promise.resolve(undefined);
+    };
+    try {
+      const service = new PiService() as unknown as {
+        tryHandleCommand: (text: string) => Promise<boolean>;
+      };
+      assert.strictEqual(await service.tryHandleCommand("/fork"), true);
+      assert.deepStrictEqual(calls, [["pi-on-code.cloneSession"]]);
+    } finally {
+      commands.executeCommand = original;
+    }
   });
 
   test("model and thinking changes do not create a headerless session file", async () => {
