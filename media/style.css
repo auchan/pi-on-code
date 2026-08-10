@@ -1920,12 +1920,11 @@ html.pi-viewport-recovering #pi-web-app {
 .conversation-minimap {
   position: fixed;
   z-index: 90;
-  top: 50%;
+  top: 16px;
   left: 9px;
   width: 28px;
   height: 28px;
-  max-height: max(28px, calc(100vh - 160px));
-  transform: translateY(-50%);
+  max-height: max(28px, calc(100vh - 32px));
 }
 
 .conversation-minimap[hidden],
