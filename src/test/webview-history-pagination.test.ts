@@ -12,6 +12,7 @@ suite("Webview history pagination", () => {
       loading: false,
       streaming: false,
       inBatch: false,
+      owner: "stream" as const,
     };
 
     assert.strictEqual(shouldLoadOlderHistory(base), true);
@@ -25,12 +26,28 @@ suite("Webview history pagination", () => {
       loading: false,
       streaming: false,
       inBatch: false,
+      owner: "stream" as const,
     };
 
     assert.strictEqual(shouldLoadOlderHistory({ ...base, hasMore: false }), false);
     assert.strictEqual(shouldLoadOlderHistory({ ...base, loading: true }), false);
     assert.strictEqual(shouldLoadOlderHistory({ ...base, inBatch: true }), false);
     assert.strictEqual(shouldLoadOlderHistory({ ...base, scrollTop: 121 }), false);
+  });
+
+  test("does not auto-load while a minimap or reveal jump owns the view", () => {
+    const base = {
+      scrollTop: 40,
+      hasMore: true,
+      loading: false,
+      streaming: false,
+      inBatch: false,
+      owner: "stream" as const,
+    };
+
+    assert.strictEqual(shouldLoadOlderHistory({ ...base, owner: "minimap" }), false);
+    assert.strictEqual(shouldLoadOlderHistory({ ...base, owner: "reveal" }), false);
+    assert.strictEqual(shouldLoadOlderHistory({ ...base, owner: "user" }), true);
   });
 
   test("preserves the visible anchor after content is prepended", () => {

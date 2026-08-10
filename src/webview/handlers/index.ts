@@ -1053,18 +1053,17 @@ export function handleHistoryPageEnd(data: any) {
     state.historyHasMore = data?.hasMoreHistory === true;
     document.body.classList.remove("no-animate");
     historyPrependContext = null;
-    const completedContext = context;
 
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        restoreScrollAfterPrepend(
-          completedContext.root,
-          completedContext.previousScrollHeight,
-          completedContext.previousScrollTop,
-        );
-        state.historyLoading = false;
-      });
-    });
+    // Restore the anchor synchronously so consecutive history pages accumulate
+    // their offsets correctly. Deferring to a double-RAF made every page save
+    // the same pre-restore scrollTop, so only the last page's height was ever
+    // compensated and the viewport jumped during multi-page loads.
+    restoreScrollAfterPrepend(
+      context.root,
+      context.previousScrollHeight,
+      context.previousScrollTop,
+    );
+    state.historyLoading = false;
   }
 
 function submitFollowUpQueue(messages: string[]): void {
@@ -2968,6 +2967,9 @@ export function updateSlashAutocomplete(filter: string) {
   // ═══ #9: Scroll-to-entry ═══════════════════════════════════
   // ═══ #9: Scroll-to-entry ═══════════════════════════════════
 
+let revealHighlightTimer: number | null = null;
+let revealHighlightTarget: HTMLElement | null = null;
+
 export function handleRevealEntry(entryId: string, toolCallId: string, waitFrames = 0) {
     if (!entryId && !toolCallId) {return;}
     if (state.historyLoading && waitFrames < 10) {
@@ -3017,6 +3019,19 @@ export function handleRevealEntry(entryId: string, toolCallId: string, waitFrame
 
     if (!el) {return;}
 
+    // Debounce repeated reveal requests: only the latest target keeps a
+    // highlight, so a burst of revealEntry messages never causes strobing.
+    if (revealHighlightTimer !== null) {
+      window.clearTimeout(revealHighlightTimer);
+      revealHighlightTimer = null;
+    }
+    if (revealHighlightTarget) {
+      revealHighlightTarget.style.background = "";
+      revealHighlightTarget.style.boxShadow = "";
+      revealHighlightTarget.style.borderRadius = "";
+      revealHighlightTarget = null;
+    }
+
     state.scrollOwner = "reveal";
     const target = el as HTMLElement;
     const container = state.chatContainer;
@@ -3027,8 +3042,8 @@ export function handleRevealEntry(entryId: string, toolCallId: string, waitFrame
     );
     // Restore the scroll-to-window behavior: smooth-scroll the target into the
     // center of the conversation viewport. The reveal owner keeps streamed DOM
-    // updates from cancelling the animation until the user scrolls or returns
-    // to the bottom.
+    // updates and older-history auto-loads from cancelling the animation until
+    // the user scrolls or returns to the bottom.
     const centeredTop = Math.max(
       0,
       jumpTop - Math.max(0, (container.clientHeight - target.offsetHeight) / 2),
@@ -3038,10 +3053,13 @@ export function handleRevealEntry(entryId: string, toolCallId: string, waitFrame
     (el as HTMLElement).style.background = "var(--vscode-list-hoverBackground)";
     (el as HTMLElement).style.boxShadow = "0 0 0 2px var(--vscode-focusBorder)";
     (el as HTMLElement).style.borderRadius = "4px";
-    setTimeout(function () {
+    revealHighlightTarget = target;
+    revealHighlightTimer = window.setTimeout(function () {
       target.style.background = "";
       target.style.boxShadow = "";
       target.style.borderRadius = "";
+      if (revealHighlightTarget === target) { revealHighlightTarget = null; }
+      revealHighlightTimer = null;
     }, 2500);
   }
 

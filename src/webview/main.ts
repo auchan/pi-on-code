@@ -208,6 +208,7 @@ state.chatContainer.addEventListener("scroll", () => {
     loading: state.historyLoading,
     streaming: state.isStreaming,
     inBatch: state._inBatch,
+    owner: state.scrollOwner,
   })) {
     state.historyLoading = true;
     vscode.postMessage({ type: "loadOlderHistory" });
