@@ -42,6 +42,17 @@ suite("Webview conversation scroll lock", () => {
     }), "user");
   });
 
+  test("releases a bottom jump after reaching the live edge", () => {
+    assert.strictEqual(nextScrollOwner("bottom", {
+      isAtBottom: false,
+      hasUserIntent: false,
+    }), "bottom");
+    assert.strictEqual(nextScrollOwner("bottom", {
+      isAtBottom: true,
+      hasUserIntent: false,
+    }), "stream");
+  });
+
   test("does not snap to bottom when the user scrolls up before the frame runs", () => {
     const viewport: ScrollViewport = { scrollTop: 240, scrollHeight: 1200 };
     let following = true;

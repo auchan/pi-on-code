@@ -1869,6 +1869,52 @@ html.pi-viewport-recovering #pi-web-app {
   background: transparent;
 }
 
+/* Return to the live edge after the user scrolls away from the latest output. */
+.scroll-to-bottom-button {
+  position: fixed;
+  z-index: 95;
+  bottom: 68px;
+  left: 50%;
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--pi-line);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--pi-surface-raised) 88%, transparent);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 24%);
+  color: var(--pi-muted);
+  cursor: pointer;
+  opacity: 0.88;
+  transform: translateX(-50%);
+  transition: border-color 120ms ease, background-color 120ms ease,
+    color 120ms ease, opacity 120ms ease;
+}
+
+.scroll-to-bottom-button[hidden] {
+  display: none;
+}
+
+.scroll-to-bottom-button:hover,
+.scroll-to-bottom-button:focus-visible {
+  border-color: var(--pi-faint);
+  background: var(--pi-surface-raised);
+  color: var(--pi-text);
+  opacity: 1;
+}
+
+.scroll-to-bottom-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
 /* Session-turn minimap. Each line represents one user message and its agent
    response; a line expands only while hovered. */
 .conversation-minimap {

@@ -14,8 +14,10 @@ export interface ScrollViewport {
  *   smooth scroll must not be interrupted by streamed DOM updates.
  * - `"reveal"` — a history reveal jump is in progress; same protection as the
  *   minimap owner.
+ * - `"bottom"` — an explicit jump to the latest message is animating; streamed
+ *   output must not interrupt it before it reaches the bottom.
  */
-export type ScrollOwner = "stream" | "user" | "minimap" | "reveal";
+export type ScrollOwner = "stream" | "user" | "minimap" | "reveal" | "bottom";
 
 export interface ScrollOwnerUpdate {
   isAtBottom: boolean;
@@ -26,8 +28,8 @@ export interface ScrollOwnerUpdate {
  * Resolve the next scroll owner after a scroll event.
  *
  * Reaching the bottom cancels any lock so streaming can follow again. Explicit
- * user input takes over as the `user` owner immediately. A minimap or reveal
- * jump keeps its ownership until the user scrolls or returns to the bottom,
+ * user input takes over as the `user` owner immediately. A minimap, reveal, or
+ * bottom jump keeps its ownership until the user scrolls or reaches the bottom,
  * so streamed DOM updates cannot hijack the view mid-animation.
  */
 export function nextScrollOwner(

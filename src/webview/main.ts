@@ -20,6 +20,7 @@ import {
 import { shouldLoadOlderHistory } from "./render/history-pagination.js";
 import { nextScrollOwner } from "./render/scroll-lock.js";
 import { ConversationMinimap } from "./components/conversation-minimap.js";
+import { ScrollToBottomButton } from "./components/scroll-to-bottom-button.js";
 
 // Side-effect imports (self-register on load)
 import "./tools/index.js";
@@ -47,6 +48,15 @@ const conversationMinimap = new ConversationMinimap(state.chatContainer, {
   },
 });
 conversationMinimap.mount(document.body);
+
+const scrollToBottomButton = new ScrollToBottomButton(state.chatContainer, {
+  onNavigate: () => {
+    clearUserScrollIntent();
+    state.scrollOwner = "bottom";
+  },
+  bottomAnchor: document.getElementById("input-area") ?? undefined,
+});
+scrollToBottomButton.mount(document.body);
 
 // Set up event delegation (code copy buttons, file path clicks)
 setupCodeBlockHandlers();
