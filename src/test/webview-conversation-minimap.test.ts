@@ -5,8 +5,23 @@ import {
   getHoverTickWidth,
   getMinimapLayout,
   getMinimapOverflow,
+  resolveActiveTurnIndex,
   truncateTurnPreview,
 } from "../webview/components/conversation-minimap.js";
+
+interface Turn {
+  entryId: string;
+  user: string;
+  agent: string;
+}
+
+function turns(count: number): Turn[] {
+  return Array.from({ length: count }, (_, index) => ({
+    entryId: `entry-${index}`,
+    user: `User ${index}`,
+    agent: `Agent ${index}`,
+  }));
+}
 
 suite("Webview conversation minimap", () => {
   test("normalizes and truncates tooltip previews", () => {
@@ -69,5 +84,25 @@ suite("Webview conversation minimap", () => {
       before: false,
       after: false,
     });
+  });
+
+  test("resolves the active turn by entry id when ids match", () => {
+    const rail = turns(6);
+    assert.strictEqual(resolveActiveTurnIndex(rail, 2, "entry-5", 3), 5);
+    assert.strictEqual(resolveActiveTurnIndex(rail, 0, "entry-3", 3), 3);
+  });
+
+  test("falls back to document order when entry ids diverge", () => {
+    const rail = turns(6);
+    // DOM echoes the newest three turns with message ids that the rail lacks.
+    assert.strictEqual(resolveActiveTurnIndex(rail, 2, "msg-5", 3), 5);
+    assert.strictEqual(resolveActiveTurnIndex(rail, 0, "msg-3", 3), 3);
+    assert.strictEqual(resolveActiveTurnIndex(rail, 1, "msg-4", 3), 4);
+  });
+
+  test("keeps the latest turn highlighted when no DOM messages exist", () => {
+    const rail = turns(6);
+    assert.strictEqual(resolveActiveTurnIndex(rail, -1, null, 0), 5);
+    assert.strictEqual(resolveActiveTurnIndex([], -1, null, 0), -1);
   });
 });

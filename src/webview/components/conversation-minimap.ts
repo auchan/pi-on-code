@@ -88,6 +88,32 @@ export function getHoverTickWidth(distance: number): number {
   return [22, 16, 12, 9][Math.abs(distance)] ?? 7;
 }
 
+/**
+ * Resolve the turn rail index that matches the loaded conversation message.
+ * Entry ids normally line up between the DOM and the rail, but a live message
+ * can be echoed with a `message.id` before its history entry (and its
+ * `entry.id`) exists. In that case fall back to document order: the rendered
+ * user messages mirror the tail of the turn rail, so the loaded DOM index maps
+ * to `turns.length - domMessageCount + loadedIndex`.
+ */
+export function resolveActiveTurnIndex(
+  turns: readonly ConversationTurnPreview[],
+  loadedIndex: number,
+  entryId: string | null,
+  domMessageCount: number,
+): number {
+  if (entryId) {
+    const matched = turns.findIndex((turn) => turn.entryId === entryId);
+    if (matched >= 0) { return matched; }
+  }
+  if (domMessageCount === 0 && turns.length > 0) { return turns.length - 1; }
+  if (loadedIndex >= 0 && domMessageCount > 0 && turns.length > 0) {
+    const domStart = Math.max(0, turns.length - domMessageCount);
+    return Math.min(turns.length - 1, domStart + loadedIndex);
+  }
+  return -1;
+}
+
 interface ConversationMinimapOptions {
   onNavigate?: () => void;
   onLoadTurn?: (entryId: string) => void;
@@ -293,9 +319,12 @@ export class ConversationMinimap implements Component<Record<string, never>> {
       + Math.min(120, this.scrollContainer.clientHeight * 0.25);
     const loadedIndex = findActiveTurnIndex(positions, anchor);
     const entryId = loadedIndex >= 0 ? messages[loadedIndex]?.getAttribute("data-entry-id") : null;
-    const nextIndex = entryId
-      ? this.turns.findIndex((turn) => turn.entryId === entryId)
-      : messages.length === 0 && this.turns.length > 0 ? this.turns.length - 1 : -1;
+    const nextIndex = resolveActiveTurnIndex(
+      this.turns,
+      loadedIndex,
+      entryId ?? null,
+      messages.length,
+    );
     if (nextIndex === this.activeIndex) { return; }
     if (this.activeIndex >= 0) {
       this.tickButtons[this.activeIndex]?.classList.remove("active");
