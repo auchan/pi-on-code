@@ -3,7 +3,8 @@ import {
   findActiveTurnIndex,
   getConversationJumpTop,
   getHoverTickWidth,
-  getTurnTickPercent,
+  getMinimapHeight,
+  getMinimapOverflow,
   truncateTurnPreview,
 } from "../webview/components/conversation-minimap.js";
 
@@ -36,10 +37,28 @@ suite("Webview conversation minimap", () => {
     assert.strictEqual(getConversationJumpTop(10, 20, 0), 0);
   });
 
-  test("distributes turn ticks across the complete minimap", () => {
-    assert.strictEqual(getTurnTickPercent(0, 4), 0);
-    assert.ok(Math.abs(getTurnTickPercent(1, 4) - 100 / 3) < Number.EPSILON * 100);
-    assert.strictEqual(getTurnTickPercent(3, 4), 100);
-    assert.strictEqual(getTurnTickPercent(0, 1), 50);
+  test("keeps fixed tick spacing until the viewport is exhausted", () => {
+    assert.strictEqual(getMinimapHeight(4, 900), 48);
+    assert.strictEqual(getMinimapHeight(80, 900), 740);
+    assert.strictEqual(getMinimapHeight(1, 120), 28);
+  });
+
+  test("fades only toward hidden minimap turns", () => {
+    assert.deepStrictEqual(getMinimapOverflow(0, 800, 300), {
+      before: false,
+      after: true,
+    });
+    assert.deepStrictEqual(getMinimapOverflow(200, 800, 300), {
+      before: true,
+      after: true,
+    });
+    assert.deepStrictEqual(getMinimapOverflow(500, 800, 300), {
+      before: true,
+      after: false,
+    });
+    assert.deepStrictEqual(getMinimapOverflow(0, 200, 300), {
+      before: false,
+      after: false,
+    });
   });
 });
