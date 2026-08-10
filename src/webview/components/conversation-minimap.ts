@@ -236,9 +236,10 @@ export class ConversationMinimap implements Component<Record<string, never>> {
       containerTop,
       this.scrollContainer.scrollTop,
     );
-    // A smooth browser scroll can be interrupted by the streamed DOM updates.
-    // Set the container offset directly so a minimap click remains effective.
-    this.scrollContainer.scrollTop = targetTop;
+    // The jump takes over as the scroll owner before the animation starts, so
+    // streamed DOM updates cannot cancel the smooth scroll mid-flight. The
+    // owner is released when the user scrolls or returns to the bottom.
+    this.scrollContainer.scrollTo({ top: targetTop, behavior: "smooth" });
   }
 
   private showTooltip(

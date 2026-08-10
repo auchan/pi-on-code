@@ -3,19 +3,40 @@ export interface ScrollViewport {
   readonly scrollHeight: number;
 }
 
-export interface FollowScrollUpdate {
-  wasLocked: boolean;
+/**
+ * Who currently owns the conversation scroll position.
+ *
+ * - `"stream"` — streaming output owns the view; new content follows to the
+ *   bottom automatically.
+ * - `"user"` — the user is reading older content via wheel, touch, scrollbar,
+ *   or keyboard; streaming must not yank the view back to the bottom.
+ * - `"minimap"` — a minimap jump is in progress (or was just performed); the
+ *   smooth scroll must not be interrupted by streamed DOM updates.
+ * - `"reveal"` — a history reveal jump is in progress; same protection as the
+ *   minimap owner.
+ */
+export type ScrollOwner = "stream" | "user" | "minimap" | "reveal";
+
+export interface ScrollOwnerUpdate {
   isAtBottom: boolean;
   hasUserIntent: boolean;
 }
 
 /**
- * Only explicit user scroll intent may lock following. Programmatic scroll
- * events can temporarily report a non-bottom position while content grows.
+ * Resolve the next scroll owner after a scroll event.
+ *
+ * Reaching the bottom cancels any lock so streaming can follow again. Explicit
+ * user input takes over as the `user` owner immediately. A minimap or reveal
+ * jump keeps its ownership until the user scrolls or returns to the bottom,
+ * so streamed DOM updates cannot hijack the view mid-animation.
  */
-export function nextFollowScrollLock(update: FollowScrollUpdate): boolean {
-  if (update.isAtBottom) { return false; }
-  return update.wasLocked || update.hasUserIntent;
+export function nextScrollOwner(
+  current: ScrollOwner,
+  update: ScrollOwnerUpdate,
+): ScrollOwner {
+  if (update.isAtBottom) { return "stream"; }
+  if (update.hasUserIntent) { return "user"; }
+  return current;
 }
 
 type ScheduleFrame = (callback: () => void) => void;

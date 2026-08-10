@@ -32,6 +32,7 @@ import { InlineCard } from "../components/inline-card.js";
 import { Dialog, dialogQuestionStem } from "../components/dialog.js";
 import { CustomUi } from "../components/custom-ui.js";
 import { CONVERSATION_TURNS_EVENT, getConversationJumpTop } from "../components/conversation-minimap.js";
+import type { ScrollOwner } from "../render/scroll-lock.js";
 import { findWorkspaceFileMention, removeWorkspaceFileMention } from "../file-mention.js";
 import {
   handleToolStart, handleToolUpdate, handleToolEnd,
@@ -933,7 +934,7 @@ interface HistoryPrependContext {
   staging: HTMLElement;
   previousScrollHeight: number;
   previousScrollTop: number;
-  hasScrolledUp: boolean;
+  scrollOwner: ScrollOwner;
   workingIndicator: HTMLElement | null;
   currentAssistantEl: HTMLElement | null;
   currentThinkingEl: HTMLElement | null;
@@ -971,7 +972,7 @@ export function handleHistoryPageStart(data: any) {
       staging: staging,
       previousScrollHeight: root.scrollHeight,
       previousScrollTop: root.scrollTop,
-      hasScrolledUp: state.hasScrolledUp,
+      scrollOwner: state.scrollOwner,
       workingIndicator: workingIndicator,
       currentAssistantEl: state.currentAssistantEl,
       currentThinkingEl: state.currentThinkingEl,
@@ -1037,7 +1038,7 @@ export function handleHistoryPageEnd(data: any) {
       context.root.appendChild(context.workingIndicator);
     }
 
-    state.hasScrolledUp = context.hasScrolledUp;
+    state.scrollOwner = context.scrollOwner;
     state.currentAssistantEl = context.currentAssistantEl;
     state.currentThinkingEl = context.currentThinkingEl;
     state.currentToolBlocks = context.currentToolBlocks;
@@ -1795,7 +1796,7 @@ export function sendPrompt(modeOverride?: "steer" | "queue"): void {
     if (!text && state.attachments.length === 0 && state.workspaceFileAttachments.length === 0) {return;}
 
     // Reset scroll tracking — user clearly wants to follow the new response
-    state.hasScrolledUp = false;
+    state.scrollOwner = "stream";
 
     // Intercept local slash commands before sending to LLM
     if (text && state.localSlashCommands.indexOf(text) !== -1) {
@@ -3016,13 +3017,23 @@ export function handleRevealEntry(entryId: string, toolCallId: string, waitFrame
 
     if (!el) {return;}
 
-    state.hasScrolledUp = true;
+    state.scrollOwner = "reveal";
     const target = el as HTMLElement;
-    state.chatContainer.scrollTop = getConversationJumpTop(
+    const container = state.chatContainer;
+    const jumpTop = getConversationJumpTop(
       target.getBoundingClientRect().top,
-      state.chatContainer.getBoundingClientRect().top,
-      state.chatContainer.scrollTop,
+      container.getBoundingClientRect().top,
+      container.scrollTop,
     );
+    // Restore the scroll-to-window behavior: smooth-scroll the target into the
+    // center of the conversation viewport. The reveal owner keeps streamed DOM
+    // updates from cancelling the animation until the user scrolls or returns
+    // to the bottom.
+    const centeredTop = Math.max(
+      0,
+      jumpTop - Math.max(0, (container.clientHeight - target.offsetHeight) / 2),
+    );
+    container.scrollTo({ top: centeredTop, behavior: "smooth" });
     target.style.transition = "background 0.2s, box-shadow 0.2s";
     (el as HTMLElement).style.background = "var(--vscode-list-hoverBackground)";
     (el as HTMLElement).style.boxShadow = "0 0 0 2px var(--vscode-focusBorder)";
