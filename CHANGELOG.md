@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.7
+
+- Reworked the conversation minimap into a fixed-pitch scrollable rail that uses the full chat viewport, fades only toward hidden turns, aligns with equal padding above the chat and the composer, and supports wheel scrolling while hovered.
+- Added a horizontally centered scroll-to-latest button that appears above the composer whenever the conversation leaves the live edge and returns to follow streaming output when clicked.
+- Batch-loaded the exact older-history range needed for an unloaded minimap jump into a single atomic page, eliminating mid-load flicker before revealing the target.
+- Introduced a scroll-owner state machine so minimap jumps, reveal jumps, and manual scrolling are never interrupted by streamed DOM updates, and are released on reaching the bottom or on the next user interaction.
+- Fixed the minimap's current-turn highlight so it keeps tracking the visible conversation while scrolling, even when a live message was echoed before its history entry (and matching entry id) existed.
+
 ## 0.2.6
 
 - Restored the top-right new-session action for single-folder workspaces while retaining refresh and per-folder creation controls for multi-folder workspaces.
