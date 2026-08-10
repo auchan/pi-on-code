@@ -121,6 +121,28 @@ bun run install:vsix
 that generated package into VS Code. Press F5 in VS Code to launch the
 Extension Development Host.
 
+## Releasing
+
+Releases are driven entirely by CI — there is no local publishing step.
+
+1. Merge the `chore/release-<version>` PR into `main`. It bumps
+   `package.json`, the manifest test, and `CHANGELOG.md`.
+2. Tag the merge commit and push the tag:
+
+   ```powershell
+   git tag -a v<version> -m "Release <version>"
+   git push origin v<version>
+   ```
+
+3. The `release.yml` workflow then builds the VSIX, runs the integration
+   tests, publishes to the VS Code Marketplace, and creates the GitHub
+   release automatically.
+
+Do not run `bun scripts/publish-vsix.mjs` or `gh release create` locally for a
+release: the CI pipeline owns both steps, and local releases conflict with it
+(for example, the workflow's release creation fails when the tag already has a
+manually created release).
+
 ## Architecture
 
 [![Pi on Code architecture](media/architecture.png)](media/architecture.svg)
