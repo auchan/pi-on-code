@@ -2036,9 +2036,11 @@ export class PiService {
       }
 
       case "fork":
+        await vscode.commands.executeCommand("pi-on-code.cloneSession");
+        return true;
+
       case "resume":
-        // These are no-ops via text since they require interactive selection.
-        // The UX is available via the Sessions tree context menus.
+        // Resume requires selecting a saved session from the Sessions view.
         return true;
 
       default:

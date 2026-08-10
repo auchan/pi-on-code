@@ -67,6 +67,7 @@ interface PiSidebarActions {
   resumeSession: (path: string) => void;
   deleteSession: (target: PiSidebarDeleteTarget) => void | Promise<void>;
   copySessionId: (sessionId: string) => void | Promise<void>;
+  forkSession: (target: PiSidebarDeleteTarget) => void | Promise<void>;
   searchPackages: (query: string) => void | Promise<void>;
   refreshPackages: () => void | Promise<void>;
   installPackage: (source: string) => void | Promise<void>;
@@ -135,6 +136,13 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
         case "session-copy-id":
           if (typeof payload.sessionId === "string") {
             void this.actions.copySessionId(payload.sessionId);
+          }
+          break;
+        case "session-fork":
+          if (payload.kind === "open" && typeof payload.id === "string") {
+            void this.actions.forkSession({ kind: "open", id: payload.id });
+          } else if (payload.kind === "past" && typeof payload.path === "string") {
+            void this.actions.forkSession({ kind: "past", path: payload.path });
           }
           break;
         case "package-search":
@@ -940,6 +948,23 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
           });
           menu.appendChild(copyId);
         }
+
+        const fork = document.createElement("button");
+        fork.type = "button";
+        fork.className = "session-menu-item";
+        fork.textContent = "Fork session";
+        fork.setAttribute("role", "menuitem");
+        fork.addEventListener("click", () => {
+          vscode.postMessage({
+            type: "session-fork",
+            kind: session.kind,
+            id: session.id,
+            path: session.path,
+          });
+          menu.hidden = true;
+          menuToggle.setAttribute("aria-expanded", "false");
+        });
+        menu.appendChild(fork);
 
         const remove = document.createElement("button");
         remove.type = "button";
