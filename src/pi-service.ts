@@ -4,7 +4,11 @@ import { pathToFileURL } from "node:url";
 import * as vscode from "vscode";
 import { createBridgeTools } from "./bridge-tools.js";
 import { splitEditorContext } from "./editor-context.js";
-import { findHistoryPageStart, isVisibleHistoryEntry } from "./history-pagination.js";
+import {
+  findHistoryLoadStart,
+  findHistoryPageStart,
+  isVisibleHistoryEntry,
+} from "./history-pagination.js";
 import { buildScopedModels, completeWithModelRuntime, getRuntimeModel, selectInitialModel } from "./pi-model-runtime.js";
 import { buildConversationTurnPreviews } from "./conversation-turns.js";
 import { type ImageContent, type PiServiceEvent, validateExtensionToWebview } from "./types.js";
@@ -1393,20 +1397,9 @@ export class PiService {
     }
   }
 
-  /** Replay the next older history page above the current Webview content. */
-  async loadOlderHistory(): Promise<void> {
-    if (this.historyPageLoading) { return; }
-    if (this.historyCursor <= 0) {
-      this.emit({
-        type: "history-page",
-        data: { hasMoreHistory: false, events: [] },
-      });
-      return;
-    }
+  /** Replay one atomic older-history range above the current Webview content. */
+  private async loadHistoryRange(start: number, end: number): Promise<void> {
     this.historyPageLoading = true;
-
-    const end = this.historyCursor;
-    const start = findHistoryPageStart(this.historyEntries, end);
     const events: PiServiceEvent[] = [];
     let replayPromise: Promise<void>;
     try {
@@ -1442,7 +1435,23 @@ export class PiService {
     }
   }
 
-  /** Load enough older pages to reveal a minimap turn that is not in the DOM. */
+  /** Replay the next older history page above the current Webview content. */
+  async loadOlderHistory(): Promise<void> {
+    if (this.historyPageLoading) { return; }
+    if (this.historyCursor <= 0) {
+      this.emit({
+        type: "history-page",
+        data: { hasMoreHistory: false, events: [] },
+      });
+      return;
+    }
+
+    const end = this.historyCursor;
+    const start = findHistoryPageStart(this.historyEntries, end);
+    await this.loadHistoryRange(start, end);
+  }
+
+  /** Load one atomic range containing a minimap turn that is not in the DOM. */
   async loadHistoryToEntry(entryId: string): Promise<void> {
     const targetIndex = this.historyEntries.findIndex((entry) => entry?.id === entryId);
     if (targetIndex < 0) {
@@ -1450,14 +1459,14 @@ export class PiService {
       return;
     }
 
-    while (this.historyCursor > targetIndex) {
-      if (this.historyPageLoading) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-        continue;
-      }
-      const previousCursor = this.historyCursor;
-      await this.loadOlderHistory();
-      if (this.historyCursor >= previousCursor) { break; }
+    while (this.historyPageLoading) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+
+    const end = this.historyCursor;
+    if (end > targetIndex) {
+      const start = findHistoryLoadStart(this.historyEntries, end, targetIndex);
+      if (start < end) { await this.loadHistoryRange(start, end); }
     }
     this.emit({ type: "revealEntry", entryId });
   }

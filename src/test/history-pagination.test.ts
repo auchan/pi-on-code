@@ -1,5 +1,6 @@
 import * as assert from "node:assert";
 import {
+  findHistoryLoadStart,
   findHistoryPageStart,
   isVisibleHistoryEntry,
 } from "../history-pagination.js";
@@ -26,6 +27,18 @@ suite("Session history pagination", () => {
     ];
 
     assert.strictEqual(findHistoryPageStart(entries, entries.length, 20), 0);
+  });
+
+  test("coalesces every page needed to include a target entry", () => {
+    const entries = Array.from({ length: 8 }, () => ({
+      type: "message",
+      message: { role: "user" },
+    }));
+
+    assert.strictEqual(findHistoryLoadStart(entries, 8, 6, 2), 6);
+    assert.strictEqual(findHistoryLoadStart(entries, 8, 3, 2), 2);
+    assert.strictEqual(findHistoryLoadStart(entries, 8, 0, 2), 0);
+    assert.strictEqual(findHistoryLoadStart(entries, 4, 6, 2), 4);
   });
 
   test("recognizes only entries rendered in the transcript", () => {
