@@ -2,6 +2,11 @@ import type { Component } from "./types.js";
 
 const PREVIEW_CHARACTER_LIMIT = 700;
 const ACTIVE_TURN_TOLERANCE_PX = 8;
+const TICK_PITCH_PX = 10;
+const TRACK_PADDING_PX = 8;
+const MINIMAP_VERTICAL_PADDING_PX = 16;
+const MINIMAP_MIN_HEIGHT_PX = 28;
+const ACTIVE_TICK_EDGE_INSET_PX = 14;
 
 export const CONVERSATION_TURNS_EVENT = "pi-conversation-turns-update";
 
@@ -32,9 +37,51 @@ export function findActiveTurnIndex(
   return 0;
 }
 
-export function getTurnTickPercent(index: number, count: number): number {
-  if (count <= 1) { return 50; }
-  return Math.max(0, Math.min(100, (index / (count - 1)) * 100));
+export interface MinimapLayout {
+  top: number;
+  height: number;
+}
+
+export function getMinimapLayout(
+  turnCount: number,
+  viewportTop: number,
+  viewportHeight: number,
+): MinimapLayout {
+  const contentHeight = Math.max(
+    MINIMAP_MIN_HEIGHT_PX,
+    Math.max(0, turnCount) * TICK_PITCH_PX + TRACK_PADDING_PX,
+  );
+  const availableHeight = Math.max(
+    MINIMAP_MIN_HEIGHT_PX,
+    viewportHeight - MINIMAP_VERTICAL_PADDING_PX * 2,
+  );
+  const height = Math.min(contentHeight, availableHeight);
+  return {
+    top: viewportTop + Math.max(0, (viewportHeight - height) / 2),
+    height,
+  };
+}
+
+export function getMinimapOverflow(
+  scrollTop: number,
+  scrollHeight: number,
+  clientHeight: number,
+  tolerance = 1,
+): { before: boolean; after: boolean } {
+  const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
+  return {
+    before: scrollTop > tolerance,
+    after: scrollTop < maxScrollTop - tolerance,
+  };
+}
+
+/** Resolve a target's scroll offset inside the conversation container. */
+export function getConversationJumpTop(
+  targetTop: number,
+  containerTop: number,
+  currentScrollTop: number,
+): number {
+  return Math.max(0, targetTop - containerTop + currentScrollTop);
 }
 
 export function getHoverTickWidth(distance: number): number {
@@ -54,6 +101,7 @@ export class ConversationMinimap implements Component<Record<string, never>> {
   private readonly userPreview: HTMLElement;
   private readonly agentPreview: HTMLElement;
   private readonly observer: MutationObserver;
+  private readonly resizeObserver: ResizeObserver;
   private turns: ConversationTurnPreview[] = [];
   private tickButtons: HTMLButtonElement[] = [];
   private activeIndex = -1;
@@ -86,6 +134,7 @@ export class ConversationMinimap implements Component<Record<string, never>> {
     this.el.append(this.ticks, this.tooltip);
 
     this.el.addEventListener("mouseleave", this.hideTooltip);
+    this.ticks.addEventListener("scroll", this.handleTicksScroll, { passive: true });
     this.scrollContainer.addEventListener("scroll", this.scheduleUpdate, { passive: true });
     window.addEventListener("resize", this.scheduleUpdate, { passive: true });
     window.addEventListener(CONVERSATION_TURNS_EVENT, this.handleTurnsUpdate);
@@ -96,6 +145,8 @@ export class ConversationMinimap implements Component<Record<string, never>> {
       subtree: true,
       characterData: true,
     });
+    this.resizeObserver = new ResizeObserver(this.scheduleUpdate);
+    this.resizeObserver.observe(this.scrollContainer);
     this.scheduleUpdate();
   }
 
@@ -110,6 +161,8 @@ export class ConversationMinimap implements Component<Record<string, never>> {
 
   destroy(): void {
     this.observer.disconnect();
+    this.resizeObserver.disconnect();
+    this.ticks.removeEventListener("scroll", this.handleTicksScroll);
     this.scrollContainer.removeEventListener("scroll", this.scheduleUpdate);
     window.removeEventListener("resize", this.scheduleUpdate);
     window.removeEventListener(CONVERSATION_TURNS_EVENT, this.handleTurnsUpdate);
@@ -141,14 +194,13 @@ export class ConversationMinimap implements Component<Record<string, never>> {
       return;
     }
     this.rebuildTicks();
-    this.updateMinimapHeight();
   };
 
   private readonly scheduleUpdate = (): void => {
     if (this.updateFrame !== null) { return; }
     this.updateFrame = requestAnimationFrame(() => {
       this.updateFrame = null;
-      this.updateMinimapHeight();
+      this.updateMinimapLayout();
       this.updateActiveTurn();
       if (this.previewTurn) { this.updateTooltipContent(this.previewTurn); }
     });
@@ -161,7 +213,6 @@ export class ConversationMinimap implements Component<Record<string, never>> {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "conversation-minimap-tick";
-      button.style.top = `${getTurnTickPercent(index, this.turns.length)}%`;
       button.setAttribute("aria-label", `Jump to user message ${index + 1}`);
       button.addEventListener("mouseenter", () => {
         this.showTooltip(this.turns[index] ?? turn, button, index);
@@ -170,15 +221,58 @@ export class ConversationMinimap implements Component<Record<string, never>> {
       return button;
     });
     this.ticks.replaceChildren(...this.tickButtons);
+    this.ticks.scrollTop = 0;
     this.el.hidden = this.turns.length === 0;
     this.activeIndex = -1;
+    this.updateMinimapLayout();
     this.updateActiveTurn();
+    this.updateOverflowFades();
   }
 
-  private updateMinimapHeight(): void {
-    const preferredHeight = Math.max(16, (this.turns.length - 1) * 10);
-    const viewportLimit = Math.max(28, Math.min(320, window.innerHeight * 0.42));
-    this.el.style.height = `${Math.min(preferredHeight, viewportLimit)}px`;
+  private updateMinimapLayout(): void {
+    const viewport = this.scrollContainer.getBoundingClientRect();
+    const layout = getMinimapLayout(this.turns.length, viewport.top, viewport.height);
+    this.el.style.top = `${layout.top}px`;
+    this.el.style.height = `${layout.height}px`;
+    this.updateOverflowFades();
+  }
+
+  private readonly handleTicksScroll = (): void => {
+    this.updateOverflowFades();
+    if (!this.previewTurn) { return; }
+    const previewIndex = this.turns.findIndex(
+      (turn) => turn.entryId === this.previewTurn?.entryId,
+    );
+    const button = this.tickButtons[previewIndex];
+    if (button) { this.positionTooltip(button); }
+  };
+
+  private updateOverflowFades(): void {
+    const overflow = getMinimapOverflow(
+      this.ticks.scrollTop,
+      this.ticks.scrollHeight,
+      this.ticks.clientHeight,
+    );
+    this.ticks.classList.toggle("can-scroll-before", overflow.before);
+    this.ticks.classList.toggle("can-scroll-after", overflow.after);
+  }
+
+  private ensureTickVisible(index: number): void {
+    const button = this.tickButtons[index];
+    if (!button) { return; }
+    const visibleTop = this.ticks.scrollTop + ACTIVE_TICK_EDGE_INSET_PX;
+    const visibleBottom = this.ticks.scrollTop
+      + this.ticks.clientHeight
+      - ACTIVE_TICK_EDGE_INSET_PX;
+    const tickTop = button.offsetTop;
+    const tickBottom = tickTop + button.offsetHeight;
+    if (tickTop < visibleTop) {
+      this.ticks.scrollTop = Math.max(0, tickTop - ACTIVE_TICK_EDGE_INSET_PX);
+    } else if (tickBottom > visibleBottom) {
+      this.ticks.scrollTop = tickBottom
+        - this.ticks.clientHeight
+        + ACTIVE_TICK_EDGE_INSET_PX;
+    }
   }
 
   private findLoadedUser(entryId: string): HTMLElement | undefined {
@@ -211,6 +305,7 @@ export class ConversationMinimap implements Component<Record<string, never>> {
     if (nextIndex >= 0) {
       this.tickButtons[nextIndex]?.classList.add("active");
       this.tickButtons[nextIndex]?.setAttribute("aria-current", "true");
+      this.ensureTickVisible(nextIndex);
     }
   }
 
@@ -222,10 +317,15 @@ export class ConversationMinimap implements Component<Record<string, never>> {
       return;
     }
     const containerTop = this.scrollContainer.getBoundingClientRect().top;
-    const targetTop = message.getBoundingClientRect().top
-      - containerTop
-      + this.scrollContainer.scrollTop;
-    this.scrollContainer.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+    const targetTop = getConversationJumpTop(
+      message.getBoundingClientRect().top,
+      containerTop,
+      this.scrollContainer.scrollTop,
+    );
+    // The jump takes over as the scroll owner before the animation starts, so
+    // streamed DOM updates cannot cancel the smooth scroll mid-flight. The
+    // owner is released when the user scrolls or returns to the bottom.
+    this.scrollContainer.scrollTo({ top: targetTop, behavior: "smooth" });
   }
 
   private showTooltip(
@@ -241,15 +341,20 @@ export class ConversationMinimap implements Component<Record<string, never>> {
     }
     this.updateTooltipContent(turn);
     this.tooltip.hidden = false;
+    this.positionTooltip(button);
+    button.setAttribute("aria-describedby", this.tooltip.id);
+  }
+
+  private positionTooltip(button: HTMLButtonElement): void {
     const minimapTop = this.el.getBoundingClientRect().top;
-    const desiredCenter = minimapTop + button.offsetTop + button.offsetHeight / 2;
+    const buttonBounds = button.getBoundingClientRect();
+    const desiredCenter = buttonBounds.top + buttonBounds.height / 2;
     const halfHeight = this.tooltip.offsetHeight / 2;
     const clampedCenter = Math.max(
       halfHeight + 8,
       Math.min(window.innerHeight - halfHeight - 8, desiredCenter),
     );
     this.tooltip.style.top = `${clampedCenter - minimapTop}px`;
-    button.setAttribute("aria-describedby", this.tooltip.id);
   }
 
   private readonly hideTooltip = (): void => {

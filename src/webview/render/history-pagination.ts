@@ -1,3 +1,5 @@
+import type { ScrollOwner } from "./scroll-lock.js";
+
 export interface HistoryViewport {
   scrollTop: number;
   readonly scrollHeight: number;
@@ -10,12 +12,19 @@ export interface OlderHistoryLoadState {
   /** Informational only: atomic history pages are safe during streaming. */
   streaming: boolean;
   inBatch: boolean;
+  /**
+   * While a minimap or reveal jump owns the view, older history must not be
+   * auto-loaded: loading another page would restore the previous anchor and
+   * cancel the jump animation mid-flight.
+   */
+  owner: ScrollOwner;
 }
 
 export function shouldLoadOlderHistory(
   state: OlderHistoryLoadState,
   threshold = 120,
 ): boolean {
+  if (state.owner === "minimap" || state.owner === "reveal") { return false; }
   return state.hasMore && !state.loading && !state.inBatch && state.scrollTop <= threshold;
 }
 

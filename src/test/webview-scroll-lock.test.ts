@@ -1,38 +1,56 @@
 import * as assert from "node:assert";
 import {
-  nextFollowScrollLock,
+  nextScrollOwner,
   scheduleFollowScroll,
   type ScrollViewport,
 } from "../webview/render/scroll-lock.js";
 
 suite("Webview conversation scroll lock", () => {
-  test("does not lock following for a programmatic non-bottom scroll event", () => {
-    assert.strictEqual(nextFollowScrollLock({
-      wasLocked: false,
+  test("keeps streaming ownership for a programmatic non-bottom scroll event", () => {
+    assert.strictEqual(nextScrollOwner("stream", {
       isAtBottom: false,
       hasUserIntent: false,
-    }), false);
+    }), "stream");
   });
 
-  test("locks following when the user intentionally leaves the bottom", () => {
-    assert.strictEqual(nextFollowScrollLock({
-      wasLocked: false,
+  test("grants user ownership when the user intentionally leaves the bottom", () => {
+    assert.strictEqual(nextScrollOwner("stream", {
       isAtBottom: false,
       hasUserIntent: true,
-    }), true);
+    }), "user");
   });
 
-  test("keeps a manual history lock until the bottom is reached", () => {
-    assert.strictEqual(nextFollowScrollLock({
-      wasLocked: true,
+  test("keeps a minimap jump lock until the bottom is reached", () => {
+    assert.strictEqual(nextScrollOwner("minimap", {
       isAtBottom: false,
       hasUserIntent: false,
-    }), true);
-    assert.strictEqual(nextFollowScrollLock({
-      wasLocked: true,
+    }), "minimap");
+    assert.strictEqual(nextScrollOwner("minimap", {
       isAtBottom: true,
       hasUserIntent: false,
-    }), false);
+    }), "stream");
+  });
+
+  test("keeps a reveal jump lock until the user scrolls", () => {
+    assert.strictEqual(nextScrollOwner("reveal", {
+      isAtBottom: false,
+      hasUserIntent: false,
+    }), "reveal");
+    assert.strictEqual(nextScrollOwner("reveal", {
+      isAtBottom: false,
+      hasUserIntent: true,
+    }), "user");
+  });
+
+  test("releases a bottom jump after reaching the live edge", () => {
+    assert.strictEqual(nextScrollOwner("bottom", {
+      isAtBottom: false,
+      hasUserIntent: false,
+    }), "bottom");
+    assert.strictEqual(nextScrollOwner("bottom", {
+      isAtBottom: true,
+      hasUserIntent: false,
+    }), "stream");
   });
 
   test("does not snap to bottom when the user scrolls up before the frame runs", () => {
@@ -61,7 +79,7 @@ suite("Webview conversation scroll lock", () => {
     assert.strictEqual(viewport.scrollTop, 1200);
   });
 
-  test("does not schedule scrolling when history view is already locked", () => {
+  test("does not schedule scrolling when a jump owner holds the view", () => {
     const viewport: ScrollViewport = { scrollTop: 240, scrollHeight: 1200 };
     let scheduleCount = 0;
 

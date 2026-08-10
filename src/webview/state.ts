@@ -6,6 +6,8 @@
 //
 // DOM refs are populated by initState(document) on startup.
 
+import type { ScrollOwner } from "./render/scroll-lock.js";
+
 export interface EditorContextItem {
   id: string;
   path: string;
@@ -134,7 +136,7 @@ export interface AppState {
   _thinkingEl: HTMLElement | null;
 
   // ── Scroll tracking
-  hasScrolledUp: boolean;
+  scrollOwner: ScrollOwner;
   historyHasMore: boolean;
   historyLoading: boolean;
 
@@ -239,7 +241,7 @@ export const state: AppState = {
   _thinkingRafId: null,
   _thinkingEl: null,
 
-  hasScrolledUp: false,
+  scrollOwner: "stream",
   historyHasMore: false,
   historyLoading: false,
 

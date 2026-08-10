@@ -18,8 +18,9 @@ import {
   scrollToBottom,
 } from "./render/engine.js";
 import { shouldLoadOlderHistory } from "./render/history-pagination.js";
-import { nextFollowScrollLock } from "./render/scroll-lock.js";
+import { nextScrollOwner } from "./render/scroll-lock.js";
 import { ConversationMinimap } from "./components/conversation-minimap.js";
+import { ScrollToBottomButton } from "./components/scroll-to-bottom-button.js";
 
 // Side-effect imports (self-register on load)
 import "./tools/index.js";
@@ -40,13 +41,22 @@ initDebugObserver();
 
 const conversationMinimap = new ConversationMinimap(state.chatContainer, {
   onNavigate: () => {
-    state.hasScrolledUp = true;
+    state.scrollOwner = "minimap";
   },
   onLoadTurn: (entryId) => {
     vscode.postMessage({ type: "loadHistoryToEntry", entryId });
   },
 });
 conversationMinimap.mount(document.body);
+
+const scrollToBottomButton = new ScrollToBottomButton(state.chatContainer, {
+  onNavigate: () => {
+    clearUserScrollIntent();
+    state.scrollOwner = "bottom";
+  },
+  bottomAnchor: document.getElementById("input-area") ?? undefined,
+});
+scrollToBottomButton.mount(document.body);
 
 // Set up event delegation (code copy buttons, file path clicks)
 setupCodeBlockHandlers();
@@ -75,7 +85,7 @@ function recoverViewportLayout(): void {
   const generation = ++viewportRecoveryGeneration;
   const root = document.documentElement;
   const restoreScroll = (): void => {
-    if (state.hasScrolledUp) { return; }
+    if (state.scrollOwner !== "stream") { return; }
     state.chatContainer.scrollTop = state.chatContainer.scrollHeight;
   };
   const repaint = (): void => {
@@ -125,7 +135,9 @@ function markUserScrollIntent(): void {
 }
 
 state.chatContainer.addEventListener("wheel", (event) => {
-  if (event.deltaY < 0) { markUserScrollIntent(); }
+  // Any wheel input while reading older content takes over scrolling so
+  // streamed output cannot pull the user back to the bottom.
+  if (event.deltaY !== 0) { markUserScrollIntent(); }
 }, { passive: true });
 
 state.chatContainer.addEventListener("pointerdown", (event) => {
@@ -194,8 +206,7 @@ state.chatContainer.addEventListener("scroll", () => {
       state.chatContainer.scrollTop -
       state.chatContainer.clientHeight <
     threshold;
-  state.hasScrolledUp = nextFollowScrollLock({
-    wasLocked: state.hasScrolledUp,
+  state.scrollOwner = nextScrollOwner(state.scrollOwner, {
     isAtBottom: atBottom,
     hasUserIntent: hasUserScrollIntent || scrollbarPointerActive,
   });
@@ -207,6 +218,7 @@ state.chatContainer.addEventListener("scroll", () => {
     loading: state.historyLoading,
     streaming: state.isStreaming,
     inBatch: state._inBatch,
+    owner: state.scrollOwner,
   })) {
     state.historyLoading = true;
     vscode.postMessage({ type: "loadOlderHistory" });
@@ -216,7 +228,7 @@ state.chatContainer.addEventListener("scroll", () => {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     recoverViewportLayout();
-    if (!state.hasScrolledUp) {
+    if (state.scrollOwner === "stream") {
       scrollToBottom();
     }
   }

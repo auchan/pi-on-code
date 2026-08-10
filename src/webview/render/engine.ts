@@ -201,7 +201,7 @@ export function resetChat() {
   for (const k of Object.keys(state.currentToolBlocks)) {delete state.currentToolBlocks[k];}
   for (const k of Object.keys(state.assistantToolCallIds)) {delete state.assistantToolCallIds[k];}
   state.lastUserMessageContent = null;
-  state.hasScrolledUp = false;
+  state.scrollOwner = "stream";
   state.historyHasMore = false;
   state.historyLoading = false;
   state.isStreaming = false;
@@ -220,7 +220,7 @@ export function resetChat() {
 export function scrollToBottom(): void {
   scheduleFollowScroll(
     state.chatContainer,
-    () => !state.hasScrolledUp,
+    () => state.scrollOwner === "stream",
   );
 }
 

@@ -1869,17 +1869,62 @@ html.pi-viewport-recovering #pi-web-app {
   background: transparent;
 }
 
+/* Return to the live edge after the user scrolls away from the latest output. */
+.scroll-to-bottom-button {
+  position: fixed;
+  z-index: 95;
+  bottom: 68px;
+  left: 50%;
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--pi-line);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--pi-surface-raised) 88%, transparent);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 24%);
+  color: var(--pi-muted);
+  cursor: pointer;
+  opacity: 0.88;
+  transform: translateX(-50%);
+  transition: border-color 120ms ease, background-color 120ms ease,
+    color 120ms ease, opacity 120ms ease;
+}
+
+.scroll-to-bottom-button[hidden] {
+  display: none;
+}
+
+.scroll-to-bottom-button:hover,
+.scroll-to-bottom-button:focus-visible {
+  border-color: var(--pi-faint);
+  background: var(--pi-surface-raised);
+  color: var(--pi-text);
+  opacity: 1;
+}
+
+.scroll-to-bottom-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
 /* Session-turn minimap. Each line represents one user message and its agent
    response; a line expands only while hovered. */
 .conversation-minimap {
   position: fixed;
   z-index: 90;
-  top: 50%;
+  top: 16px;
   left: 9px;
   width: 28px;
   height: 28px;
-  max-height: min(42vh, 320px);
-  transform: translateY(-50%);
+  max-height: max(28px, calc(100vh - 32px));
 }
 
 .conversation-minimap[hidden],
@@ -1889,20 +1934,59 @@ html.pi-viewport-recovering #pi-web-app {
 
 .conversation-minimap-ticks {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   width: 100%;
   height: 100%;
+  padding: 4px 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.conversation-minimap-ticks::-webkit-scrollbar {
+  display: none;
+}
+
+.conversation-minimap-ticks.can-scroll-before:not(.can-scroll-after) {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18px, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent, #000 18px, #000 100%);
+}
+
+.conversation-minimap-ticks.can-scroll-after:not(.can-scroll-before) {
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 18px), transparent);
+  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 18px), transparent);
+}
+
+.conversation-minimap-ticks.can-scroll-before.can-scroll-after {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 18px,
+    #000 calc(100% - 18px),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 18px,
+    #000 calc(100% - 18px),
+    transparent
+  );
 }
 
 .conversation-minimap-tick {
-  position: absolute;
+  position: relative;
   left: 0;
+  flex: 0 0 8px;
   width: 28px;
   height: 8px;
   padding: 0;
   border: 0;
   background: transparent;
   cursor: pointer;
-  transform: translateY(-50%);
 }
 
 .conversation-minimap-tick::before {

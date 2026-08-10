@@ -32,3 +32,24 @@ export function findHistoryPageStart(
   }
   return 0;
 }
+
+/**
+ * Find one atomic history range that includes a target entry. This follows the
+ * same visible-entry page boundaries as ordinary pagination without exposing
+ * each intermediate page to the Webview.
+ */
+export function findHistoryLoadStart(
+  entries: HistoryEntryLike[],
+  end: number,
+  targetIndex: number,
+  pageSize = HISTORY_PAGE_SIZE,
+): number {
+  let start = Math.min(end, entries.length);
+  const target = Math.max(0, Math.min(targetIndex, start));
+  while (start > target) {
+    const previousStart = start;
+    start = findHistoryPageStart(entries, start, pageSize);
+    if (start >= previousStart) { break; }
+  }
+  return start;
+}
