@@ -31,7 +31,7 @@ import { LiveCard } from "../components/live-card.js";
 import { InlineCard } from "../components/inline-card.js";
 import { Dialog, dialogQuestionStem } from "../components/dialog.js";
 import { CustomUi } from "../components/custom-ui.js";
-import { CONVERSATION_TURNS_EVENT } from "../components/conversation-minimap.js";
+import { CONVERSATION_TURNS_EVENT, getConversationJumpTop } from "../components/conversation-minimap.js";
 import { findWorkspaceFileMention, removeWorkspaceFileMention } from "../file-mention.js";
 import {
   handleToolStart, handleToolUpdate, handleToolEnd,
@@ -3016,15 +3016,21 @@ export function handleRevealEntry(entryId: string, toolCallId: string, waitFrame
 
     if (!el) {return;}
 
-    (el as HTMLElement).scrollIntoView({ behavior: "smooth", block: "center" });
-    (el as HTMLElement).style.transition = "background 0.2s, box-shadow 0.2s";
+    state.hasScrolledUp = true;
+    const target = el as HTMLElement;
+    state.chatContainer.scrollTop = getConversationJumpTop(
+      target.getBoundingClientRect().top,
+      state.chatContainer.getBoundingClientRect().top,
+      state.chatContainer.scrollTop,
+    );
+    target.style.transition = "background 0.2s, box-shadow 0.2s";
     (el as HTMLElement).style.background = "var(--vscode-list-hoverBackground)";
     (el as HTMLElement).style.boxShadow = "0 0 0 2px var(--vscode-focusBorder)";
     (el as HTMLElement).style.borderRadius = "4px";
     setTimeout(function () {
-      (el as HTMLElement).style.background = "";
-      (el as HTMLElement).style.boxShadow = "";
-      (el as HTMLElement).style.borderRadius = "";
+      target.style.background = "";
+      target.style.boxShadow = "";
+      target.style.borderRadius = "";
     }, 2500);
   }
 

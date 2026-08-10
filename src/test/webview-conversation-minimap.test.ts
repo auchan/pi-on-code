@@ -1,6 +1,7 @@
 import * as assert from "node:assert";
 import {
   findActiveTurnIndex,
+  getConversationJumpTop,
   getHoverTickWidth,
   getTurnTickPercent,
   truncateTurnPreview,
@@ -28,6 +29,11 @@ suite("Webview conversation minimap", () => {
       [22, 16, 12, 9, 7],
     );
     assert.strictEqual(getHoverTickWidth(-2), 12);
+  });
+
+  test("resolves jumps relative to the conversation scroll container", () => {
+    assert.strictEqual(getConversationJumpTop(80, 20, 140), 200);
+    assert.strictEqual(getConversationJumpTop(10, 20, 0), 0);
   });
 
   test("distributes turn ticks across the complete minimap", () => {

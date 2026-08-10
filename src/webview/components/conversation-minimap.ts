@@ -37,6 +37,15 @@ export function getTurnTickPercent(index: number, count: number): number {
   return Math.max(0, Math.min(100, (index / (count - 1)) * 100));
 }
 
+/** Resolve a target's scroll offset inside the conversation container. */
+export function getConversationJumpTop(
+  targetTop: number,
+  containerTop: number,
+  currentScrollTop: number,
+): number {
+  return Math.max(0, targetTop - containerTop + currentScrollTop);
+}
+
 export function getHoverTickWidth(distance: number): number {
   return [22, 16, 12, 9][Math.abs(distance)] ?? 7;
 }
@@ -222,10 +231,14 @@ export class ConversationMinimap implements Component<Record<string, never>> {
       return;
     }
     const containerTop = this.scrollContainer.getBoundingClientRect().top;
-    const targetTop = message.getBoundingClientRect().top
-      - containerTop
-      + this.scrollContainer.scrollTop;
-    this.scrollContainer.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+    const targetTop = getConversationJumpTop(
+      message.getBoundingClientRect().top,
+      containerTop,
+      this.scrollContainer.scrollTop,
+    );
+    // A smooth browser scroll can be interrupted by the streamed DOM updates.
+    // Set the container offset directly so a minimap click remains effective.
+    this.scrollContainer.scrollTop = targetTop;
   }
 
   private showTooltip(
