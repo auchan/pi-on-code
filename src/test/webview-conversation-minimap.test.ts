@@ -5,6 +5,7 @@ import {
   getHoverTickWidth,
   getMinimapLayout,
   getMinimapOverflow,
+  normalizeConversationTurns,
   resolveActiveTurnIndex,
   resolveLoadedUserIndex,
   truncateTurnPreview,
@@ -12,6 +13,7 @@ import {
 
 interface Turn {
   entryId: string;
+  messageId?: string;
   user: string;
   agent: string;
 }
@@ -87,12 +89,23 @@ suite("Webview conversation minimap", () => {
     });
   });
 
+  test("preserves live message aliases from turn updates", () => {
+    assert.deepStrictEqual(normalizeConversationTurns([
+      { entryId: "entry-1", messageId: "message-1", user: "Question", agent: "Answer" },
+    ]), [
+      { entryId: "entry-1", messageId: "message-1", user: "Question", agent: "Answer" },
+    ]);
+  });
+
   test("maps fresh DOM messages to their persisted minimap turns", () => {
     const rail = turns(6);
     assert.strictEqual(resolveLoadedUserIndex(rail, "entry-4", ["msg-3", "msg-4", "msg-5"]), 1);
     assert.strictEqual(resolveLoadedUserIndex(rail, "entry-5", ["msg-3", "msg-4", "msg-5"]), 2);
     assert.strictEqual(resolveLoadedUserIndex(rail, "entry-1", ["msg-3", "msg-4", "msg-5"]), -1);
     assert.strictEqual(resolveLoadedUserIndex(rail, "entry-4", ["msg-3", "entry-4", "msg-5"]), 1);
+
+    rail[5].messageId = "live-message";
+    assert.strictEqual(resolveLoadedUserIndex(rail, "entry-5", ["live-message", "msg-3", "msg-4"]), 0);
   });
 
   test("keeps fresh turns aligned when rendered messages temporarily lead the rail", () => {
@@ -104,10 +117,13 @@ suite("Webview conversation minimap", () => {
     assert.strictEqual(resolveLoadedUserIndex(rail, "missing", rendered), -1);
   });
 
-  test("resolves the active turn by entry id when ids match", () => {
+  test("resolves the active turn by entry or live message id", () => {
     const rail = turns(6);
+    rail[5].messageId = "live-message";
+
     assert.strictEqual(resolveActiveTurnIndex(rail, 2, "entry-5", 3), 5);
     assert.strictEqual(resolveActiveTurnIndex(rail, 0, "entry-3", 3), 3);
+    assert.strictEqual(resolveActiveTurnIndex(rail, 0, "live-message", 3), 5);
   });
 
   test("falls back to document order when entry ids diverge", () => {

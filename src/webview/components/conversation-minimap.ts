@@ -12,8 +12,29 @@ export const CONVERSATION_TURNS_EVENT = "pi-conversation-turns-update";
 
 export interface ConversationTurnPreview {
   entryId: string;
+  messageId?: string;
   user: string;
   agent: string;
+}
+
+export function normalizeConversationTurns(values: readonly unknown[]): ConversationTurnPreview[] {
+  return values.flatMap((value): ConversationTurnPreview[] => {
+    if (!value || typeof value !== "object") { return []; }
+    const turn = value as Record<string, unknown>;
+    if (
+      typeof turn.entryId !== "string"
+      || typeof turn.user !== "string"
+      || typeof turn.agent !== "string"
+    ) {
+      return [];
+    }
+    return [{
+      entryId: turn.entryId,
+      ...(typeof turn.messageId === "string" ? { messageId: turn.messageId } : {}),
+      user: turn.user,
+      agent: turn.agent,
+    }];
+  });
 }
 
 export function truncateTurnPreview(
@@ -98,10 +119,13 @@ export function resolveLoadedUserIndex(
   targetEntryId: string,
   loadedEntryIds: readonly (string | null)[],
 ): number {
-  const exactIndex = loadedEntryIds.indexOf(targetEntryId);
-  if (exactIndex >= 0) { return exactIndex; }
   const turnIndex = turns.findIndex((turn) => turn.entryId === targetEntryId);
   if (turnIndex < 0) { return -1; }
+  const turn = turns[turnIndex]!;
+  const exactIndex = loadedEntryIds.findIndex(
+    (entryId) => entryId === turn.entryId || entryId === turn.messageId,
+  );
+  if (exactIndex >= 0) { return exactIndex; }
   const fallbackIndex = turnIndex + loadedEntryIds.length - turns.length;
   return fallbackIndex >= 0 && fallbackIndex < loadedEntryIds.length ? fallbackIndex : -1;
 }
@@ -113,7 +137,9 @@ export function resolveActiveTurnIndex(
   domMessageCount: number,
 ): number {
   if (entryId) {
-    const matched = turns.findIndex((turn) => turn.entryId === entryId);
+    const matched = turns.findIndex(
+      (turn) => turn.entryId === entryId || turn.messageId === entryId,
+    );
     if (matched >= 0) { return matched; }
   }
   if (domMessageCount === 0 && turns.length > 0) { return turns.length - 1; }
@@ -208,20 +234,12 @@ export class ConversationMinimap implements Component<Record<string, never>> {
 
   private readonly handleTurnsUpdate = (event: Event): void => {
     if (!(event instanceof CustomEvent) || !Array.isArray(event.detail)) { return; }
-    const nextTurns = event.detail.flatMap((value: unknown): ConversationTurnPreview[] => {
-      if (!value || typeof value !== "object") { return []; }
-      const turn = value as Record<string, unknown>;
-      if (
-        typeof turn.entryId !== "string"
-        || typeof turn.user !== "string"
-        || typeof turn.agent !== "string"
-      ) {
-        return [];
-      }
-      return [{ entryId: turn.entryId, user: turn.user, agent: turn.agent }];
-    });
+    const nextTurns = normalizeConversationTurns(event.detail);
     const sameTurns = nextTurns.length === this.turns.length
-      && nextTurns.every((turn, index) => turn.entryId === this.turns[index]?.entryId);
+      && nextTurns.every((turn, index) =>
+        turn.entryId === this.turns[index]?.entryId
+        && turn.messageId === this.turns[index]?.messageId,
+      );
     const previewEntryId = this.previewTurn?.entryId;
     this.turns = nextTurns;
     if (sameTurns) {

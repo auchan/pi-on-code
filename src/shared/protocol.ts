@@ -318,6 +318,7 @@ const ExtensionToWebviewSchema = z.discriminatedUnion("type", [
     data: z.object({
       turns: z.array(z.object({
         entryId: z.string().min(1),
+        messageId: z.string().min(1).optional(),
         user: z.string(),
         agent: z.string(),
       })),

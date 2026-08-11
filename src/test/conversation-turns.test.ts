@@ -46,6 +46,21 @@ suite("Conversation turn previews", () => {
     ]);
   });
 
+  test("keeps the SDK message id as a live DOM alias", () => {
+    const turns = buildConversationTurnPreviews([{
+      id: "entry-1",
+      type: "message",
+      message: { id: "message-1", role: "user", content: "Question" },
+    }]);
+
+    assert.deepStrictEqual(turns, [{
+      entryId: "entry-1",
+      messageId: "message-1",
+      user: "Question",
+      agent: "",
+    }]);
+  });
+
   test("indexes turns beyond the initial history page", () => {
     const entries = Array.from({ length: 35 }, (_, index) => [
       {
