@@ -684,7 +684,12 @@ export const readToolRenderer = {
 
 export const defaultToolRenderer = {
     create: function (data: ToolData) {
-      return createToolBlock(data.toolName, data.toolCallId, "pending", data.args);
+      // Consolidated tools carry a disambiguating `action` argument (e.g.
+      // vscode_workspace_tool with open_file / diagnostics). Surface it in the
+      // card title so the UI shows which capability actually ran.
+      var action = data.args && typeof data.args.action === "string" ? data.args.action : "";
+      var title = action ? data.toolName + ": " + action : data.toolName;
+      return createToolBlock(title, data.toolCallId, "pending", data.args);
     },
     update: function (el: ToolEl, partialResult: ToolPartialResult) {
       var tr = el.querySelector<HTMLElement>(".tool-result");
