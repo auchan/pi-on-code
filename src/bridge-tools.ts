@@ -6,10 +6,9 @@ import { getWorkspaceCwd } from "./workspace-context.js";
  * Creates the VS Code bridge tools that give the AI agent visibility into
  * the VS Code editor state.
  *
- * Only two tools are injected to keep the tool definitions lean:
- * - `vscode_open_file` — always available so the agent can reveal files.
- * - `vscode_workspace_tool` — one consolidated tool that dispatches the other
- *   VS Code capabilities through an `action` parameter.
+ * A single consolidated tool `vscode_workspace_tool` is injected to keep the
+ * tool definitions lean; it dispatches every VS Code capability (including
+ * opening files and applying edits) through an `action` parameter.
  *
  * Accepts `defineTool` and `Type` from the pi SDK so all tools use the
  * SDK's type-safe definition pattern.
@@ -87,80 +86,18 @@ export function createBridgeTools(defineTool: Function, Type: any): any[] {
     details: {},
   });
 
-  // ── Tool: vscode_open_file (always available) ───────────
-
-  tools.push(
-    defineTool({
-      name: "vscode_open_file",
-      label: "VS Code Open File",
-      description: "Open a file in VS Code and optionally reveal a selection range.",
-      executionMode: "sequential",
-      parameters: Type.Object({
-        filePath: Type.String({ description: "Absolute or workspace-relative file path" }),
-        preview: Type.Optional(Type.Boolean({ description: "Open in preview mode" })),
-        preserveFocus: Type.Optional(Type.Boolean({ description: "Keep focus in the current editor" })),
-        selection: Type.Optional(Type.Object({
-          start: Type.Object({
-            line: Type.Number({ description: "Zero-based line number" }),
-            character: Type.Number({ description: "Zero-based character offset" }),
-          }),
-          end: Type.Object({
-            line: Type.Number({ description: "Zero-based line number" }),
-            character: Type.Number({ description: "Zero-based character offset" }),
-          }),
-        })),
-      }, { additionalProperties: false }),
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-      execute: async (_toolCallId: string, params: any) => {
-        const resolved = resolvePath(params.filePath);
-        if (!resolved) {
-          return { content: [{ type: "text", text: "Error: no file path provided" }], details: {} };
-        }
-
-        const uri = vscode.Uri.file(resolved);
-        const doc = await vscode.workspace.openTextDocument(uri);
-
-        const sel = params.selection;
-        const selection = sel
-          ? new vscode.Selection(
-              new vscode.Position(sel.start.line, sel.start.character),
-              new vscode.Position(sel.end.line, sel.end.character),
-            )
-          : undefined;
-
-        await vscode.window.showTextDocument(doc, {
-          preview: params.preview ?? true,
-          preserveFocus: params.preserveFocus ?? false,
-          ...(selection ? { selection } : {}),
-        });
-
-        return {
-          content: [{
-            type: "text",
-            text: boundedJson({
-              opened: resolved,
-              relativePath: workspaceRelativePath(resolved),
-              languageId: doc.languageId,
-              lineCount: doc.lineCount,
-            }),
-          }],
-          details: {},
-        };
-      },
-    }),
-  );
-
   // ── Tool: vscode_workspace_tool (consolidated VS Code capabilities) ───
 
   tools.push(
     defineTool({
       name: "vscode_workspace_tool",
-      label: "VS Code Search Tool",
+      label: "VS Code Workspace Tool",
       description:
-        "Consolidated VS Code inspection and editing tool. Use the action parameter to select a capability; only provide the parameters that action needs. Actions: editor_state (active editor, selection, workspace folders, open editors), selection (current selection text and range), diagnostics (LSP/lint/type errors, optional filePath), open_editors (visible editors with dirty state), workspace_folders, document_dirty (is a file open/dirty), save_document, document_symbols (outline from language server), definitions (symbol definitions at position), hover (types/signatures/docs at position), references (symbol references at position), workspace_symbols (query), code_actions (quick fixes for a range, optional start/end), apply_edit (range replacements, uses edits), format_document.",
+        "Consolidated VS Code tool. Use the action parameter to select a capability; only provide the parameters that action needs. Actions: open_file (open a file, optional preview/preserveFocus/selection), editor_state (active editor, selection, workspace folders, open editors), selection (current selection text and range), diagnostics (LSP/lint/type errors, optional filePath), open_editors (visible editors with dirty state), workspace_folders, document_dirty (is a file open/dirty), save_document, document_symbols (outline from language server), definitions (symbol definitions at position), hover (types/signatures/docs at position), references (symbol references at position), workspace_symbols (query), code_actions (quick fixes for a range, optional start/end), apply_edit (range replacements, uses edits), format_document.",
       executionMode: "sequential",
       parameters: Type.Object({
         action: Type.Enum({
+          open_file: "open_file",
           editor_state: "editor_state",
           selection: "selection",
           diagnostics: "diagnostics",
@@ -182,6 +119,12 @@ export function createBridgeTools(defineTool: Function, Type: any): any[] {
         start: Type.Optional(positionType),
         end: Type.Optional(positionType),
         query: Type.Optional(Type.String({ description: "Workspace symbol search query" })),
+        preview: Type.Optional(Type.Boolean({ description: "Open in preview mode (open_file)" })),
+        preserveFocus: Type.Optional(Type.Boolean({ description: "Keep focus in the current editor (open_file)" })),
+        selection: Type.Optional(Type.Object({
+          start: positionType,
+          end: positionType,
+        }, { description: "Optional range to reveal (open_file)" })),
         edits: Type.Optional(Type.Array(Type.Object({
           filePath: Type.String({ description: "Absolute or workspace-relative file path" }),
           range: Type.Object({
@@ -194,6 +137,43 @@ export function createBridgeTools(defineTool: Function, Type: any): any[] {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
       execute: async (_toolCallId: string, params: any) => {
         switch (params.action) {
+          case "open_file": {
+            const resolved = resolvePath(params.filePath);
+            if (!resolved) {
+              return errorResult("Error: no file path provided");
+            }
+
+            const uri = vscode.Uri.file(resolved);
+            const doc = await vscode.workspace.openTextDocument(uri);
+
+            const sel = params.selection;
+            const selection = sel
+              ? new vscode.Selection(
+                  new vscode.Position(sel.start.line, sel.start.character),
+                  new vscode.Position(sel.end.line, sel.end.character),
+                )
+              : undefined;
+
+            await vscode.window.showTextDocument(doc, {
+              preview: params.preview ?? true,
+              preserveFocus: params.preserveFocus ?? false,
+              ...(selection ? { selection } : {}),
+            });
+
+            return {
+              content: [{
+                type: "text",
+                text: boundedJson({
+                  opened: resolved,
+                  relativePath: workspaceRelativePath(resolved),
+                  languageId: doc.languageId,
+                  lineCount: doc.lineCount,
+                }),
+              }],
+              details: {},
+            };
+          }
+
           case "editor_state": {
             const editor = vscode.window.activeTextEditor;
             const selection = editor?.selection;
