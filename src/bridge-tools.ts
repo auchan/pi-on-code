@@ -86,56 +86,70 @@ export function createBridgeTools(defineTool: Function, Type: any): any[] {
     details: {},
   });
 
-  // ── Tool: vscode_workspace_tool (consolidated VS Code capabilities) ───
+  // CLI-style help listing returned by vscode_workspace_tool on demand, so the
+  // tool definition stays lean and the model only pays for details it needs.
+  const workspaceToolHelp = `vscode_workspace_tool: run a VS Code capability.
+
+Usage:
+  vscode_workspace_tool action=<name> [args...]
+
+Capabilities:
+  open_file         filePath, preview?, preserveFocus?, selection? - open a file and optionally reveal a range
+  editor_state      - active editor, selection, workspace folders, open editors
+  selection         - current selection text and range
+  diagnostics       filePath? - LSP/lint/type errors for a file or the workspace
+  open_editors      - visible editors with dirty state
+  workspace_folders - workspace folders and cwd
+  document_dirty    filePath - whether a file is open and dirty
+  save_document     filePath - save a document
+  document_symbols  filePath - outline symbols from the language server
+  definitions       filePath, position - symbol definitions at a position
+  hover             filePath, position - types, signatures, and docs at a position
+  references        filePath, position - symbol references at a position
+  workspace_symbols query - search workspace symbols
+  code_actions      filePath, start?, end? - quick fixes for a range
+  apply_edit        edits - apply range replacements across files
+  format_document   filePath - format a file with the active formatter
+
+position: { line, character } (zero-based).
+edits: [{ filePath, range: { start, end }, newText }].`;
+
+  // ── Tool: vscode_workspace_tool (CLI-style, help on demand) ───
 
   tools.push(
     defineTool({
       name: "vscode_workspace_tool",
       label: "VS Code Workspace Tool",
       description:
-        "Consolidated VS Code tool. Use the action parameter to select a capability; only provide the parameters that action needs. Actions: open_file (open a file, optional preview/preserveFocus/selection), editor_state (active editor, selection, workspace folders, open editors), selection (current selection text and range), diagnostics (LSP/lint/type errors, optional filePath), open_editors (visible editors with dirty state), workspace_folders, document_dirty (is a file open/dirty), save_document, document_symbols (outline from language server), definitions (symbol definitions at position), hover (types/signatures/docs at position), references (symbol references at position), workspace_symbols (query), code_actions (quick fixes for a range, optional start/end), apply_edit (range replacements, uses edits), format_document.",
+        "Run a VS Code capability (file inspection, editing, symbols, and more). Start with action \"help\" (or call with no arguments) to list the available capabilities and their arguments, then call the specific action you need.",
       executionMode: "sequential",
       parameters: Type.Object({
-        action: Type.Enum({
-          open_file: "open_file",
-          editor_state: "editor_state",
-          selection: "selection",
-          diagnostics: "diagnostics",
-          open_editors: "open_editors",
-          workspace_folders: "workspace_folders",
-          document_dirty: "document_dirty",
-          save_document: "save_document",
-          document_symbols: "document_symbols",
-          definitions: "definitions",
-          hover: "hover",
-          references: "references",
-          workspace_symbols: "workspace_symbols",
-          code_actions: "code_actions",
-          apply_edit: "apply_edit",
-          format_document: "format_document",
-        }, { description: "Which VS Code capability to run" }),
-        filePath: Type.Optional(Type.String({ description: "Absolute or workspace-relative file path" })),
+        action: Type.String({ description: "Capability to run; use \"help\" to list available capabilities" }),
+        filePath: Type.Optional(Type.String({})),
         position: Type.Optional(positionType),
         start: Type.Optional(positionType),
         end: Type.Optional(positionType),
-        query: Type.Optional(Type.String({ description: "Workspace symbol search query" })),
-        preview: Type.Optional(Type.Boolean({ description: "Open in preview mode (open_file)" })),
-        preserveFocus: Type.Optional(Type.Boolean({ description: "Keep focus in the current editor (open_file)" })),
+        query: Type.Optional(Type.String({})),
+        preview: Type.Optional(Type.Boolean({})),
+        preserveFocus: Type.Optional(Type.Boolean({})),
         selection: Type.Optional(Type.Object({
           start: positionType,
           end: positionType,
-        }, { description: "Optional range to reveal (open_file)" })),
+        })),
         edits: Type.Optional(Type.Array(Type.Object({
-          filePath: Type.String({ description: "Absolute or workspace-relative file path" }),
+          filePath: Type.String({}),
           range: Type.Object({
             start: positionType,
             end: positionType,
           }),
-          newText: Type.String({ description: "Replacement text" }),
-        }), { description: "List of text replacements for apply_edit" })),
+          newText: Type.String({}),
+        }))),
       }, { additionalProperties: false }),
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
       execute: async (_toolCallId: string, params: any) => {
+        if (!params.action || params.action === "help") {
+          return { content: [{ type: "text", text: workspaceToolHelp }], details: {} };
+        }
         switch (params.action) {
           case "open_file": {
             const resolved = resolvePath(params.filePath);

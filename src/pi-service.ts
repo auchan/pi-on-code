@@ -198,9 +198,8 @@ Key information about your environment:
 - For editing files, use the edit or write tool.
 
 When the user asks you to fix something:
-1. Check diagnostics first if the diagnostics bridge tool is available.
-2. Look at the relevant code.
-3. Make edits.
+1. Look at the relevant code.
+2. Make edits.
 
 Be concise and helpful. Prefer editing existing files over creating new ones.`;
   const appended = additionalInstructions.trim();
@@ -241,7 +240,6 @@ function buildContextFiles(cwd: string): Array<{ path: string; content: string }
 - Bridge tools (prefixed vscode_) let you inspect open editors, diagnostics, symbols, and more.
 
 ## Interaction Tips
-- Before making changes, check for diagnostics if the diagnostics tool is available.
 - If the user mentions a file, verify it exists and check its content.
 - When editing, use the edit or write tool.`,
   });
