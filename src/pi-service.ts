@@ -198,9 +198,8 @@ Key information about your environment:
 - For editing files, use the edit or write tool.
 
 When the user asks you to fix something:
-1. Check diagnostics first if the diagnostics bridge tool is available.
-2. Look at the relevant code.
-3. Make edits.
+1. Look at the relevant code.
+2. Make edits.
 
 Be concise and helpful. Prefer editing existing files over creating new ones.`;
   const appended = additionalInstructions.trim();
@@ -241,7 +240,6 @@ function buildContextFiles(cwd: string): Array<{ path: string; content: string }
 - Bridge tools (prefixed vscode_) let you inspect open editors, diagnostics, symbols, and more.
 
 ## Interaction Tips
-- Before making changes, check for diagnostics if the diagnostics tool is available.
 - If the user mentions a file, verify it exists and check its content.
 - When editing, use the edit or write tool.`,
   });
@@ -303,7 +301,7 @@ function buildPromptTemplates(
       sourceInfo: syn("/virtual/prompts/fix-diagnostics.md"),
       content: `# Fix Diagnostics
 
-Check the currently open file for diagnostics using vscode_get_diagnostics.
+Check the currently open file for diagnostics using vscode_workspace_tool with action "diagnostics".
 For each diagnostic, analyze the root cause and apply a fix.
 Explain what you're fixing and why.`,
     },
@@ -314,9 +312,9 @@ Explain what you're fixing and why.`,
       sourceInfo: syn("/virtual/prompts/explain-code.md"),
       content: `# Explain Code
 
-Use vscode_get_editor_state to find what file and selection the user has open.
+Use vscode_workspace_tool with action "editor_state" to find what file and selection the user has open.
 Read the relevant code section and explain what it does, its purpose, and how it works.
-If the selection is empty, explain the function/module at the cursor position (use vscode_get_hover for additional context).`,
+If the selection is empty, explain the function/module at the cursor position (use vscode_workspace_tool with action "hover" for additional context).`,
     },
     {
       name: "refactor",
@@ -325,7 +323,7 @@ If the selection is empty, explain the function/module at the cursor position (u
       sourceInfo: syn("/virtual/prompts/refactor.md"),
       content: `# Refactor
 
-Get the current selection with vscode_get_selection.
+Get the current selection with vscode_workspace_tool with action "selection".
 Analyze the code and suggest/apply refactoring improvements:
 - Extract repeated logic into functions
 - Simplify complex expressions
