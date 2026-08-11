@@ -37,6 +37,22 @@ Do not stash, commit, overwrite, delete, or copy unrelated uncommitted changes f
 
 Install dependencies normally when possible. A temporary `node_modules` symlink or Windows junction may be used to share the primary Worktree dependencies, but it must be removed separately before deleting the task Worktree. Never commit dependency directories or temporary links.
 
+For repositories stored on a Windows drive, create and manage Worktrees with Windows Git, even when the agent shell runs through WSL. Creating them with WSL Git records `/mnt/<drive>/...` paths in Git metadata, which Windows Git reports as `prunable`. Worktree metadata should use native paths such as `E:/workroom/<repo>-<task>`.
+
+Prefer a Windows junction when sharing the primary Worktree dependencies:
+
+```powershell
+cmd.exe /c mklink /J "E:\workroom\<repo>-<task>\node_modules" "E:\workroom\<repo>\node_modules"
+```
+
+Verify that the primary `node_modules` exists and that the task Worktree destination does not exist before creating the junction. Before removing the Worktree, remove only the junction with Windows `rmdir`; this preserves the target dependency directory:
+
+```powershell
+cmd.exe /c rmdir "E:\workroom\<repo>-<task>\node_modules"
+```
+
+Do not use recursive deletion such as `rm -rf` on a dependency junction.
+
 ## Validation
 
 Run checks appropriate to the changed area. The standard project checks are:
