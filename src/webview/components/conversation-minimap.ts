@@ -2,6 +2,7 @@ import type { Component } from "./types.js";
 
 const PREVIEW_CHARACTER_LIMIT = 700;
 const ACTIVE_TURN_TOLERANCE_PX = 8;
+const LIVE_EDGE_THRESHOLD_PX = 50;
 const TICK_PITCH_PX = 10;
 const TRACK_PADDING_PX = 16;
 const MINIMAP_VERTICAL_PADDING_PX = 32;
@@ -49,9 +50,11 @@ export function truncateTurnPreview(
 export function findActiveTurnIndex(
   positions: readonly number[],
   viewportAnchor: number,
+  atLiveEdge = false,
   tolerance = ACTIVE_TURN_TOLERANCE_PX,
 ): number {
   if (positions.length === 0) { return -1; }
+  if (atLiveEdge) { return positions.length - 1; }
   for (let index = positions.length - 1; index >= 0; index--) {
     if (positions[index]! <= viewportAnchor + tolerance) { return index; }
   }
@@ -351,7 +354,10 @@ export class ConversationMinimap implements Component<Record<string, never>> {
     );
     const anchor = this.scrollContainer.scrollTop
       + Math.min(120, this.scrollContainer.clientHeight * 0.25);
-    const loadedIndex = findActiveTurnIndex(positions, anchor);
+    const atLiveEdge = this.scrollContainer.scrollHeight
+      - this.scrollContainer.scrollTop
+      - this.scrollContainer.clientHeight < LIVE_EDGE_THRESHOLD_PX;
+    const loadedIndex = findActiveTurnIndex(positions, anchor, atLiveEdge);
     const entryId = loadedIndex >= 0 ? messages[loadedIndex]?.getAttribute("data-entry-id") : null;
     const nextIndex = resolveActiveTurnIndex(
       this.turns,

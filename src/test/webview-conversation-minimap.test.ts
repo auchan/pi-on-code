@@ -42,6 +42,12 @@ suite("Webview conversation minimap", () => {
     assert.strictEqual(findActiveTurnIndex([], 500), -1);
   });
 
+  test("selects the newest loaded turn at the live edge", () => {
+    const positions = [40, 280, 640];
+
+    assert.strictEqual(findActiveTurnIndex(positions, 500, true), 2);
+  });
+
   test("expands nearby ticks gradually around the hovered turn", () => {
     assert.deepStrictEqual(
       [0, 1, 2, 3, 4].map(getHoverTickWidth),
