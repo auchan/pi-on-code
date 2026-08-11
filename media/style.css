@@ -2005,7 +2005,8 @@ html.pi-viewport-recovering #pi-web-app {
 }
 
 .conversation-minimap-tick:hover::before,
-.conversation-minimap-tick.active::before {
+.conversation-minimap-tick.active::before,
+.conversation-minimap-tick.visible::before {
   background: var(--pi-text);
   opacity: 0.92;
 }

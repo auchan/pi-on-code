@@ -1,6 +1,7 @@
 import * as assert from "node:assert";
 import {
   findActiveTurnIndex,
+  findVisibleMessageIndices,
   getConversationJumpTop,
   getHoverTickWidth,
   getMinimapLayout,
@@ -46,6 +47,15 @@ suite("Webview conversation minimap", () => {
     const positions = [40, 280, 640];
 
     assert.strictEqual(findActiveTurnIndex(positions, 500, true), 2);
+  });
+
+  test("finds every user message intersecting the viewport", () => {
+    assert.deepStrictEqual(findVisibleMessageIndices([
+      { top: -20, bottom: 8 },
+      { top: 24, bottom: 72 },
+      { top: 100, bottom: 140 },
+      { top: -40, bottom: 0 },
+    ], { top: 0, bottom: 100 }), [0, 1]);
   });
 
   test("expands nearby ticks gradually around the hovered turn", () => {

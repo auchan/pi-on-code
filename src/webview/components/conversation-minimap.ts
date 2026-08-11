@@ -61,6 +61,20 @@ export function findActiveTurnIndex(
   return 0;
 }
 
+export interface VerticalBounds {
+  top: number;
+  bottom: number;
+}
+
+export function findVisibleMessageIndices(
+  messages: readonly VerticalBounds[],
+  viewport: VerticalBounds,
+): number[] {
+  return messages.flatMap((message, index) =>
+    message.bottom > viewport.top && message.top < viewport.bottom ? [index] : [],
+  );
+}
+
 export interface MinimapLayout {
   top: number;
   height: number;
@@ -170,6 +184,7 @@ export class ConversationMinimap implements Component<Record<string, never>> {
   private turns: ConversationTurnPreview[] = [];
   private tickButtons: HTMLButtonElement[] = [];
   private activeIndex = -1;
+  private visibleIndices = new Set<number>();
   private previewTurn: ConversationTurnPreview | null = null;
   private updateFrame: number | null = null;
 
@@ -281,6 +296,7 @@ export class ConversationMinimap implements Component<Record<string, never>> {
     this.ticks.scrollTop = 0;
     this.el.hidden = this.turns.length === 0;
     this.activeIndex = -1;
+    this.visibleIndices.clear();
     this.updateMinimapLayout();
     this.updateActiveTurn();
     this.updateOverflowFades();
@@ -348,10 +364,33 @@ export class ConversationMinimap implements Component<Record<string, never>> {
     const messages = Array.from(
       this.scrollContainer.querySelectorAll<HTMLElement>(".message.user[data-entry-id]"),
     );
-    const containerTop = this.scrollContainer.getBoundingClientRect().top;
-    const positions = messages.map((message) =>
-      message.getBoundingClientRect().top - containerTop + this.scrollContainer.scrollTop,
+    const containerBounds = this.scrollContainer.getBoundingClientRect();
+    const messageBounds = messages.map((message) => message.getBoundingClientRect());
+    const positions = messageBounds.map((bounds) =>
+      bounds.top - containerBounds.top + this.scrollContainer.scrollTop,
     );
+    const nextVisibleIndices = new Set(
+      findVisibleMessageIndices(messageBounds, containerBounds).flatMap((loadedIndex) => {
+        const entryId = messages[loadedIndex]?.getAttribute("data-entry-id") ?? null;
+        const turnIndex = resolveActiveTurnIndex(
+          this.turns,
+          loadedIndex,
+          entryId,
+          messages.length,
+        );
+        return turnIndex >= 0 ? [turnIndex] : [];
+      }),
+    );
+    for (const index of this.visibleIndices) {
+      if (!nextVisibleIndices.has(index)) {
+        this.tickButtons[index]?.classList.remove("visible");
+      }
+    }
+    for (const index of nextVisibleIndices) {
+      this.tickButtons[index]?.classList.add("visible");
+    }
+    this.visibleIndices = nextVisibleIndices;
+
     const anchor = this.scrollContainer.scrollTop
       + Math.min(120, this.scrollContainer.clientHeight * 0.25);
     const atLiveEdge = this.scrollContainer.scrollHeight
