@@ -81,6 +81,27 @@ suite("PiService session persistence", () => {
     assert.ok(!events.some((event) => event.type === "custom-message" && event.data?.customType === "pi-on-code-diagnostic"));
   });
 
+  test("uses the persisted user entry id for live minimap messages", () => {
+    const events: Array<{ type: string; data?: { entryId?: string } }> = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- focused white-box regression test
+    const service = new PiService() as any;
+    service.sessionManager = {
+      getEntries: () => [
+        { id: "entry-old", type: "message", message: { role: "user", content: "Old" } },
+        { id: "entry-current", type: "message", message: { role: "user", content: "Current" } },
+      ],
+    };
+    service.onEvent((event: { type: string; data?: { entryId?: string } }) => events.push(event));
+
+    service.handleAgentEvent({
+      type: "message_start",
+      message: { id: "transient-live-id", role: "user", content: "Current" },
+    });
+
+    const chatMessage = events.find((event) => event.type === "chat-message");
+    assert.strictEqual(chatMessage?.data?.entryId, "entry-current");
+  });
+
   test("surfaces an empty successful assistant response as an error", () => {
     const events: Array<{ type: string; data?: { stopReason?: string; errorMessage?: string } }> = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- focused white-box regression test

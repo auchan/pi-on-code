@@ -1570,22 +1570,25 @@ export class PiService {
 
   /** Get entries once per event, plus pre-built lookups to avoid O(n²) scans. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private getEntriesWithLookups(): { entries: any[]; byMessageId: Map<string, any>; byToolCallId: Map<string, any> } {
+  private getEntriesWithLookups(): { entries: any[]; byMessageId: Map<string, any>; byToolCallId: Map<string, any>; latestUserEntry: any } {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const entries: any[] = this.sessionManager?.getEntries?.() ?? [];
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const byMessageId = new Map<string, any>();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const byToolCallId = new Map<string, any>();
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let latestUserEntry: any;
     for (const e of entries) {
       if (e.type === "message") {
         if (e.message?.id) { byMessageId.set(e.message.id, e); }
+        if (e.message?.role === "user") { latestUserEntry = e; }
         if (e.message?.role === "toolResult" && e.message?.toolCallId) {
           byToolCallId.set(e.message.toolCallId, e);
         }
       }
     }
-    return { entries, byMessageId, byToolCallId };
+    return { entries, byMessageId, byToolCallId, latestUserEntry };
   }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1627,7 +1630,7 @@ export class PiService {
         break;
 
       case "message_start": {
-        const { entries, byMessageId } = this.getEntriesWithLookups();
+        const { entries, byMessageId, latestUserEntry } = this.getEntriesWithLookups();
         if (event.message?.role === "user") {
           const prompt = splitEditorContext(this.extractTextFromContent(event.message.content));
           const images = this.extractImagesFromContent(event.message.content);
@@ -1636,7 +1639,9 @@ export class PiService {
               this._userMessages.push({ id: event.message.id ?? `user-${Date.now()}`, text: prompt.text, timestamp: event.message.timestamp ?? Date.now() });
               if (this._userMessages.length > 50) { this._userMessages.shift(); }
             }
-            const entry = byMessageId.get(event.message.id);
+            // Pi Session entries persist the stable id on the outer entry,
+            // while a live SDK user message may have only a transient id.
+            const entry = byMessageId.get(event.message.id) ?? latestUserEntry;
             this.emit({
               type: "chat-message",
               data: {
