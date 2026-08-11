@@ -81,25 +81,39 @@ suite("PiService session persistence", () => {
     assert.ok(!events.some((event) => event.type === "custom-message" && event.data?.customType === "pi-on-code-diagnostic"));
   });
 
-  test("uses the persisted user entry id for live minimap messages", () => {
-    const events: Array<{ type: string; data?: { entryId?: string } }> = [];
+  test("links a live message to its persisted turn after the agent ends", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- focused white-box regression test
+    const events: any[] = [];
+    let entries = [
+      { id: "entry-old", type: "message", message: { role: "user", content: "Old" } },
+    ];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- focused white-box regression test
     const service = new PiService() as any;
-    service.sessionManager = {
-      getEntries: () => [
-        { id: "entry-old", type: "message", message: { role: "user", content: "Old" } },
-        { id: "entry-current", type: "message", message: { role: "user", content: "Current" } },
-      ],
-    };
-    service.onEvent((event: { type: string; data?: { entryId?: string } }) => events.push(event));
+    service.sessionManager = { getEntries: () => entries };
+    service.onEvent((event: unknown) => events.push(event));
 
     service.handleAgentEvent({
       type: "message_start",
       message: { id: "transient-live-id", role: "user", content: "Current" },
     });
-
     const chatMessage = events.find((event) => event.type === "chat-message");
-    assert.strictEqual(chatMessage?.data?.entryId, "entry-current");
+    assert.strictEqual(chatMessage?.data?.entryId, "transient-live-id");
+
+    entries = [
+      ...entries,
+      { id: "entry-current", type: "message", message: { role: "user", content: "Current" } },
+    ];
+    service.handleAgentEvent({ type: "agent_end", messages: [] });
+
+    const turnsUpdate = events.slice().reverse().find(
+      (event: { type: string }) => event.type === "conversation-turns-update",
+    );
+    assert.deepStrictEqual(turnsUpdate?.data?.turns.at(-1), {
+      entryId: "entry-current",
+      messageId: "transient-live-id",
+      user: "Current",
+      agent: "",
+    });
   });
 
   test("surfaces an empty successful assistant response as an error", () => {
