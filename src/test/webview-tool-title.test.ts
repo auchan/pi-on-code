@@ -2,18 +2,18 @@ import * as assert from "node:assert";
 import { resolveToolTitle } from "../webview/render/tool-title.js";
 
 suite("Webview tool card title", () => {
-  test("resolves consolidated tool titles as vscode_<action>", () => {
+  test("appends the action to the consolidated tool name", () => {
     assert.strictEqual(
       resolveToolTitle("vscode_workspace_tool", { action: "open_file", filePath: "a.ts" }),
-      "vscode_open_file",
+      "vscode_workspace_tool - open_file",
     );
     assert.strictEqual(
       resolveToolTitle("vscode_workspace_tool", { action: "diagnostics" }),
-      "vscode_diagnostics",
+      "vscode_workspace_tool - diagnostics",
     );
     assert.strictEqual(
       resolveToolTitle("vscode_workspace_tool", { action: "help" }),
-      "vscode_help",
+      "vscode_workspace_tool - help",
     );
   });
 
@@ -23,10 +23,10 @@ suite("Webview tool card title", () => {
     assert.strictEqual(resolveToolTitle("read", { path: "a.ts" }), "read");
   });
 
-  test("uses toolName: action for other consolidated-style tools", () => {
+  test("uses the same dash format for other consolidated-style tools", () => {
     assert.strictEqual(
       resolveToolTitle("my_tool", { action: "sync" }),
-      "my_tool: sync",
+      "my_tool - sync",
     );
   });
 });
