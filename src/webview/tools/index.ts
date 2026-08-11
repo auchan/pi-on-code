@@ -12,6 +12,7 @@ import {
 } from "../render/engine.js";
 import { highlightCode } from "../highlight.js";
 import { html, safe } from "../render/html.js";
+import { resolveToolTitle, updateToolBlockTitle } from "../render/tool-title.js";
 import { ToolBlock } from "../components/tool-block.js";
 import {
   DEFAULT_TOOL_COLLAPSE_LINES,
@@ -102,6 +103,7 @@ type ToolData = Record<string, unknown> & {
   args?: Record<string, unknown>;
   fromMessage?: boolean;
 };
+
 type ToolPartialResult = { content?: Array<{ type: string; text: string }> };
 type ToolResult = {
   content?: Array<{ type: string; text: string }>;
@@ -684,18 +686,7 @@ export const readToolRenderer = {
 
 export const defaultToolRenderer = {
     create: function (data: ToolData) {
-      // Consolidated tools carry a disambiguating `action` argument (e.g.
-      // vscode_workspace_tool with open_file / diagnostics). Surface it as
-      // vscode_<action> in the card title so the UI shows which capability
-      // actually ran, matching the previous per-tool naming.
-      var action = data.args && typeof data.args.action === "string" ? data.args.action : "";
-      var title = data.toolName;
-      if (action) {
-        title = data.toolName === "vscode_workspace_tool"
-          ? "vscode_" + action
-          : data.toolName + ": " + action;
-      }
-      return createToolBlock(title, data.toolCallId, "pending", data.args);
+      return createToolBlock(resolveToolTitle(data.toolName, data.args), data.toolCallId, "pending", data.args);
     },
     update: function (el: ToolEl, partialResult: ToolPartialResult) {
       var tr = el.querySelector<HTMLElement>(".tool-result");
@@ -945,7 +936,8 @@ export function handleToolStart(data: any) {
       // message_update often had only partial args.  Feed the complete
       // args to the renderer so it can finish its display (e.g. edit
       // previews that were missing because oldText/newText hadn't
-      // arrived yet during streaming).
+      // arrived yet during streaming), and refresh the card title so
+      // consolidated tools show the resolved vscode_<action>.
       if (!data.fromMessage) {
         var dedupRenderer = existingTool ? (existingTool as any).renderer : bashToolRenderer;
         if (dedupRenderer && (dedupRenderer as any).update && data.args) {
@@ -963,6 +955,9 @@ export function handleToolStart(data: any) {
               codeEl.textContent = JSON.stringify(data.args, null, 2);
             } catch (_e) { /* ignore stringify errors */ }
           }
+        }
+        if (data.args) {
+          updateToolBlockTitle(block, resolveToolTitle(data.toolName, data.args));
         }
       }
 
