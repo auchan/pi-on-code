@@ -95,6 +95,15 @@ suite("Webview conversation minimap", () => {
     assert.strictEqual(resolveLoadedUserIndex(rail, "entry-4", ["msg-3", "entry-4", "msg-5"]), 1);
   });
 
+  test("keeps fresh turns aligned when rendered messages temporarily lead the rail", () => {
+    const rail = turns(3);
+    const rendered = ["pending", "msg-0", "msg-1", "msg-2"];
+
+    assert.strictEqual(resolveLoadedUserIndex(rail, "entry-1", rendered), 2);
+    assert.strictEqual(resolveLoadedUserIndex(rail, "entry-2", rendered), 3);
+    assert.strictEqual(resolveLoadedUserIndex(rail, "missing", rendered), -1);
+  });
+
   test("resolves the active turn by entry id when ids match", () => {
     const rail = turns(6);
     assert.strictEqual(resolveActiveTurnIndex(rail, 2, "entry-5", 3), 5);
@@ -107,6 +116,10 @@ suite("Webview conversation minimap", () => {
     assert.strictEqual(resolveActiveTurnIndex(rail, 2, "msg-5", 3), 5);
     assert.strictEqual(resolveActiveTurnIndex(rail, 0, "msg-3", 3), 3);
     assert.strictEqual(resolveActiveTurnIndex(rail, 1, "msg-4", 3), 4);
+    // A freshly rendered message can temporarily make the DOM one item longer.
+    assert.strictEqual(resolveActiveTurnIndex(rail, 6, "msg-5", 7), 5);
+    assert.strictEqual(resolveActiveTurnIndex(rail, 5, "msg-4", 7), 4);
+    assert.strictEqual(resolveActiveTurnIndex(rail, 0, "pending", 7), -1);
   });
 
   test("keeps the latest turn highlighted when no DOM messages exist", () => {

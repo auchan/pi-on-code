@@ -89,18 +89,9 @@ export function getHoverTickWidth(distance: number): number {
 }
 
 /**
- * Resolve the turn rail index that matches the loaded conversation message.
- * Entry ids normally line up between the DOM and the rail, but a live message
- * can be echoed with a `message.id` before its history entry (and its
- * `entry.id`) exists. In that case fall back to document order: the rendered
- * user messages mirror the tail of the turn rail, so the loaded DOM index maps
- * to `turns.length - domMessageCount + loadedIndex`.
- */
-/**
  * Find a loaded user message for a minimap turn. Fresh messages can initially
  * have a message id in the DOM while the rail has the persisted entry id.
- * The loaded messages are the tail of the complete turn list, so document
- * order provides a stable fallback until those identifiers converge.
+ * Align both lists at their newest item until those identifiers converge.
  */
 export function resolveLoadedUserIndex(
   turns: readonly ConversationTurnPreview[],
@@ -110,8 +101,8 @@ export function resolveLoadedUserIndex(
   const exactIndex = loadedEntryIds.indexOf(targetEntryId);
   if (exactIndex >= 0) { return exactIndex; }
   const turnIndex = turns.findIndex((turn) => turn.entryId === targetEntryId);
-  const firstLoadedTurn = Math.max(0, turns.length - loadedEntryIds.length);
-  const fallbackIndex = turnIndex - firstLoadedTurn;
+  if (turnIndex < 0) { return -1; }
+  const fallbackIndex = turnIndex + loadedEntryIds.length - turns.length;
   return fallbackIndex >= 0 && fallbackIndex < loadedEntryIds.length ? fallbackIndex : -1;
 }
 
@@ -127,8 +118,8 @@ export function resolveActiveTurnIndex(
   }
   if (domMessageCount === 0 && turns.length > 0) { return turns.length - 1; }
   if (loadedIndex >= 0 && domMessageCount > 0 && turns.length > 0) {
-    const domStart = Math.max(0, turns.length - domMessageCount);
-    return Math.min(turns.length - 1, domStart + loadedIndex);
+    const fallbackIndex = loadedIndex + turns.length - domMessageCount;
+    return fallbackIndex >= 0 && fallbackIndex < turns.length ? fallbackIndex : -1;
   }
   return -1;
 }
