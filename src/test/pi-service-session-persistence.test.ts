@@ -212,15 +212,15 @@ suite("PiService session persistence", () => {
     };
     service.session = {
       setActiveToolsByName: () => undefined,
-      getActiveToolNames: () => ["read", "vscode_get_selection"],
+      getActiveToolNames: () => ["read", "vscode_search_tool"],
     };
 
-    service.setActiveTools(["read", "vscode_get_selection"]);
+    service.setActiveTools(["read", "vscode_search_tool"]);
 
     assert.strictEqual(fs.existsSync(sessionFile), false);
     assert.deepStrictEqual(appended, [{
       customType: "pi-on-code.active-tools",
-      data: { toolNames: ["read", "vscode_get_selection"] },
+      data: { toolNames: ["read", "vscode_search_tool"] },
     }]);
   });
 
