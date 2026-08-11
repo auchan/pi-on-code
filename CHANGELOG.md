@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.8
+
+- Consolidated the 16 VS Code bridge tools into a single `vscode_workspace_tool` with a CLI-style `help` listing, roughly halving the per-request tool-definition token cost.
+- Tool cards now show the resolved capability (e.g. `vscode_open_file`) and clickable file path links, matching the read/write/edit cards.
+- Removed the always-instructed diagnostics pre-check from the system prompt.
+- Kept the conversation minimap highlight tracking the current turn while streaming and on live messages.
+
 ## 0.2.7
 
 - Reworked the conversation minimap into a fixed-pitch scrollable rail that uses the full chat viewport, fades only toward hidden turns, aligns with equal padding above the chat and the composer, and supports wheel scrolling while hovered.
