@@ -2,9 +2,10 @@ import type { Component } from "./types.js";
 
 const PREVIEW_CHARACTER_LIMIT = 700;
 const ACTIVE_TURN_TOLERANCE_PX = 8;
+const LIVE_EDGE_THRESHOLD_PX = 50;
 const TICK_PITCH_PX = 10;
-const TRACK_PADDING_PX = 8;
-const MINIMAP_VERTICAL_PADDING_PX = 16;
+const TRACK_PADDING_PX = 16;
+const MINIMAP_VERTICAL_PADDING_PX = 32;
 const MINIMAP_MIN_HEIGHT_PX = 28;
 const ACTIVE_TICK_EDGE_INSET_PX = 14;
 
@@ -12,8 +13,29 @@ export const CONVERSATION_TURNS_EVENT = "pi-conversation-turns-update";
 
 export interface ConversationTurnPreview {
   entryId: string;
+  messageId?: string;
   user: string;
   agent: string;
+}
+
+export function normalizeConversationTurns(values: readonly unknown[]): ConversationTurnPreview[] {
+  return values.flatMap((value): ConversationTurnPreview[] => {
+    if (!value || typeof value !== "object") { return []; }
+    const turn = value as Record<string, unknown>;
+    if (
+      typeof turn.entryId !== "string"
+      || typeof turn.user !== "string"
+      || typeof turn.agent !== "string"
+    ) {
+      return [];
+    }
+    return [{
+      entryId: turn.entryId,
+      ...(typeof turn.messageId === "string" ? { messageId: turn.messageId } : {}),
+      user: turn.user,
+      agent: turn.agent,
+    }];
+  });
 }
 
 export function truncateTurnPreview(
@@ -28,13 +50,29 @@ export function truncateTurnPreview(
 export function findActiveTurnIndex(
   positions: readonly number[],
   viewportAnchor: number,
+  atLiveEdge = false,
   tolerance = ACTIVE_TURN_TOLERANCE_PX,
 ): number {
   if (positions.length === 0) { return -1; }
+  if (atLiveEdge) { return positions.length - 1; }
   for (let index = positions.length - 1; index >= 0; index--) {
     if (positions[index]! <= viewportAnchor + tolerance) { return index; }
   }
   return 0;
+}
+
+export interface VerticalBounds {
+  top: number;
+  bottom: number;
+}
+
+export function findVisibleMessageIndices(
+  messages: readonly VerticalBounds[],
+  viewport: VerticalBounds,
+): number[] {
+  return messages.flatMap((message, index) =>
+    message.bottom > viewport.top && message.top < viewport.bottom ? [index] : [],
+  );
 }
 
 export interface MinimapLayout {
@@ -89,13 +127,26 @@ export function getHoverTickWidth(distance: number): number {
 }
 
 /**
- * Resolve the turn rail index that matches the loaded conversation message.
- * Entry ids normally line up between the DOM and the rail, but a live message
- * can be echoed with a `message.id` before its history entry (and its
- * `entry.id`) exists. In that case fall back to document order: the rendered
- * user messages mirror the tail of the turn rail, so the loaded DOM index maps
- * to `turns.length - domMessageCount + loadedIndex`.
+ * Find a loaded user message for a minimap turn. Fresh messages can initially
+ * have a message id in the DOM while the rail has the persisted entry id.
+ * Align both lists at their newest item until those identifiers converge.
  */
+export function resolveLoadedUserIndex(
+  turns: readonly ConversationTurnPreview[],
+  targetEntryId: string,
+  loadedEntryIds: readonly (string | null)[],
+): number {
+  const turnIndex = turns.findIndex((turn) => turn.entryId === targetEntryId);
+  if (turnIndex < 0) { return -1; }
+  const turn = turns[turnIndex]!;
+  const exactIndex = loadedEntryIds.findIndex(
+    (entryId) => entryId === turn.entryId || entryId === turn.messageId,
+  );
+  if (exactIndex >= 0) { return exactIndex; }
+  const fallbackIndex = turnIndex + loadedEntryIds.length - turns.length;
+  return fallbackIndex >= 0 && fallbackIndex < loadedEntryIds.length ? fallbackIndex : -1;
+}
+
 export function resolveActiveTurnIndex(
   turns: readonly ConversationTurnPreview[],
   loadedIndex: number,
@@ -103,13 +154,15 @@ export function resolveActiveTurnIndex(
   domMessageCount: number,
 ): number {
   if (entryId) {
-    const matched = turns.findIndex((turn) => turn.entryId === entryId);
+    const matched = turns.findIndex(
+      (turn) => turn.entryId === entryId || turn.messageId === entryId,
+    );
     if (matched >= 0) { return matched; }
   }
   if (domMessageCount === 0 && turns.length > 0) { return turns.length - 1; }
   if (loadedIndex >= 0 && domMessageCount > 0 && turns.length > 0) {
-    const domStart = Math.max(0, turns.length - domMessageCount);
-    return Math.min(turns.length - 1, domStart + loadedIndex);
+    const fallbackIndex = loadedIndex + turns.length - domMessageCount;
+    return fallbackIndex >= 0 && fallbackIndex < turns.length ? fallbackIndex : -1;
   }
   return -1;
 }
@@ -131,6 +184,7 @@ export class ConversationMinimap implements Component<Record<string, never>> {
   private turns: ConversationTurnPreview[] = [];
   private tickButtons: HTMLButtonElement[] = [];
   private activeIndex = -1;
+  private visibleIndices = new Set<number>();
   private previewTurn: ConversationTurnPreview | null = null;
   private updateFrame: number | null = null;
 
@@ -198,20 +252,12 @@ export class ConversationMinimap implements Component<Record<string, never>> {
 
   private readonly handleTurnsUpdate = (event: Event): void => {
     if (!(event instanceof CustomEvent) || !Array.isArray(event.detail)) { return; }
-    const nextTurns = event.detail.flatMap((value: unknown): ConversationTurnPreview[] => {
-      if (!value || typeof value !== "object") { return []; }
-      const turn = value as Record<string, unknown>;
-      if (
-        typeof turn.entryId !== "string"
-        || typeof turn.user !== "string"
-        || typeof turn.agent !== "string"
-      ) {
-        return [];
-      }
-      return [{ entryId: turn.entryId, user: turn.user, agent: turn.agent }];
-    });
+    const nextTurns = normalizeConversationTurns(event.detail);
     const sameTurns = nextTurns.length === this.turns.length
-      && nextTurns.every((turn, index) => turn.entryId === this.turns[index]?.entryId);
+      && nextTurns.every((turn, index) =>
+        turn.entryId === this.turns[index]?.entryId
+        && turn.messageId === this.turns[index]?.messageId,
+      );
     const previewEntryId = this.previewTurn?.entryId;
     this.turns = nextTurns;
     if (sameTurns) {
@@ -250,6 +296,7 @@ export class ConversationMinimap implements Component<Record<string, never>> {
     this.ticks.scrollTop = 0;
     this.el.hidden = this.turns.length === 0;
     this.activeIndex = -1;
+    this.visibleIndices.clear();
     this.updateMinimapLayout();
     this.updateActiveTurn();
     this.updateOverflowFades();
@@ -302,22 +349,54 @@ export class ConversationMinimap implements Component<Record<string, never>> {
   }
 
   private findLoadedUser(entryId: string): HTMLElement | undefined {
-    return Array.from(
+    const messages = Array.from(
       this.scrollContainer.querySelectorAll<HTMLElement>(".message.user[data-entry-id]"),
-    ).find((message) => message.getAttribute("data-entry-id") === entryId);
+    );
+    const index = resolveLoadedUserIndex(
+      this.turns,
+      entryId,
+      messages.map((message) => message.getAttribute("data-entry-id")),
+    );
+    return index >= 0 ? messages[index] : undefined;
   }
 
   private updateActiveTurn(): void {
     const messages = Array.from(
       this.scrollContainer.querySelectorAll<HTMLElement>(".message.user[data-entry-id]"),
     );
-    const containerTop = this.scrollContainer.getBoundingClientRect().top;
-    const positions = messages.map((message) =>
-      message.getBoundingClientRect().top - containerTop + this.scrollContainer.scrollTop,
+    const containerBounds = this.scrollContainer.getBoundingClientRect();
+    const messageBounds = messages.map((message) => message.getBoundingClientRect());
+    const positions = messageBounds.map((bounds) =>
+      bounds.top - containerBounds.top + this.scrollContainer.scrollTop,
     );
+    const nextVisibleIndices = new Set(
+      findVisibleMessageIndices(messageBounds, containerBounds).flatMap((loadedIndex) => {
+        const entryId = messages[loadedIndex]?.getAttribute("data-entry-id") ?? null;
+        const turnIndex = resolveActiveTurnIndex(
+          this.turns,
+          loadedIndex,
+          entryId,
+          messages.length,
+        );
+        return turnIndex >= 0 ? [turnIndex] : [];
+      }),
+    );
+    for (const index of this.visibleIndices) {
+      if (!nextVisibleIndices.has(index)) {
+        this.tickButtons[index]?.classList.remove("visible");
+      }
+    }
+    for (const index of nextVisibleIndices) {
+      this.tickButtons[index]?.classList.add("visible");
+    }
+    this.visibleIndices = nextVisibleIndices;
+
     const anchor = this.scrollContainer.scrollTop
       + Math.min(120, this.scrollContainer.clientHeight * 0.25);
-    const loadedIndex = findActiveTurnIndex(positions, anchor);
+    const atLiveEdge = this.scrollContainer.scrollHeight
+      - this.scrollContainer.scrollTop
+      - this.scrollContainer.clientHeight < LIVE_EDGE_THRESHOLD_PX;
+    const loadedIndex = findActiveTurnIndex(positions, anchor, atLiveEdge);
     const entryId = loadedIndex >= 0 ? messages[loadedIndex]?.getAttribute("data-entry-id") : null;
     const nextIndex = resolveActiveTurnIndex(
       this.turns,

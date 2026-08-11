@@ -16,6 +16,7 @@ interface HistoryEntryLike {
 
 export interface ConversationTurnPreview {
   entryId: string;
+  messageId?: string;
   user: string;
   agent: string;
 }
@@ -56,9 +57,11 @@ export function buildConversationTurnPreviews(
         current = undefined;
         continue;
       }
+      const messageId = typeof message.id === "string" ? message.id : undefined;
       const prompt = splitEditorContext(extractTextContent(message.content));
       current = {
         entryId,
+        ...(messageId ? { messageId } : {}),
         user: truncateConversationTurnPreview(prompt.text),
         agent: "",
       };

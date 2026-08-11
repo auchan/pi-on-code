@@ -426,6 +426,8 @@ export class PiService {
 
   // User message history for the resend/reuse feature (#2)
   private _userMessages: Array<{ id: string; text: string; timestamp?: number }> = [];
+  private pendingLiveUserMessageIds: string[] = [];
+  private liveUserEntryAliases = new Map<string, string>();
 
   // Lazily replayed session history. The cursor points to the oldest entry
   // currently rendered in the Webview.
@@ -1217,12 +1219,29 @@ export class PiService {
   }
 
   /** Send a lightweight minimap index for the complete Session history. */
-  private emitConversationTurns(entries?: readonly unknown[]): void {
+  private emitConversationTurns(entries?: readonly unknown[], captureLiveAliases = false): void {
     try {
       const source = entries ?? this.sessionManager?.getEntries?.() ?? [];
+      const turns = buildConversationTurnPreviews(source);
+      if (captureLiveAliases && this.pendingLiveUserMessageIds.length > 0) {
+        const count = Math.min(turns.length, this.pendingLiveUserMessageIds.length);
+        const turnStart = turns.length - count;
+        const aliasStart = this.pendingLiveUserMessageIds.length - count;
+        for (let index = 0; index < count; index++) {
+          this.liveUserEntryAliases.set(
+            turns[turnStart + index].entryId,
+            this.pendingLiveUserMessageIds[aliasStart + index],
+          );
+        }
+        this.pendingLiveUserMessageIds = [];
+      }
+      const aliasedTurns = turns.map((turn) => {
+        const messageId = this.liveUserEntryAliases.get(turn.entryId) ?? turn.messageId;
+        return messageId ? { ...turn, messageId } : turn;
+      });
       this.emit({
         type: "conversation-turns-update",
-        data: { turns: buildConversationTurnPreviews(source) },
+        data: { turns: aliasedTurns },
       });
     } catch (error: unknown) {
       piWarn(`Could not build conversation minimap: ${error instanceof Error ? error.message : String(error)}`);
@@ -1603,7 +1622,7 @@ export class PiService {
         this.currentAssistantToolCalls.clear();
         this.turnIndex = 0;
         this.emit({ type: "agent-end", data: { messages: event.messages } });
-        this.emitConversationTurns();
+        this.emitConversationTurns(undefined, true);
         this.reportStatus();
         break;
 
@@ -1632,8 +1651,10 @@ export class PiService {
           const prompt = splitEditorContext(this.extractTextFromContent(event.message.content));
           const images = this.extractImagesFromContent(event.message.content);
           if (prompt.text || images.length > 0 || prompt.context?.items.length) {
+            const liveMessageId = event.message.id ?? `live-user-${Date.now()}`;
+            this.pendingLiveUserMessageIds.push(liveMessageId);
             if (prompt.text) {
-              this._userMessages.push({ id: event.message.id ?? `user-${Date.now()}`, text: prompt.text, timestamp: event.message.timestamp ?? Date.now() });
+              this._userMessages.push({ id: liveMessageId, text: prompt.text, timestamp: event.message.timestamp ?? Date.now() });
               if (this._userMessages.length > 50) { this._userMessages.shift(); }
             }
             const entry = byMessageId.get(event.message.id);
@@ -1644,7 +1665,7 @@ export class PiService {
                 content: prompt.text,
                 images,
                 editorContext: prompt.context?.items,
-                entryId: entry?.id ?? event.message.id,
+                entryId: entry?.id ?? liveMessageId,
               },
             });
           }

@@ -59,7 +59,12 @@ suite("Shared webview protocol", () => {
     const update = validateExtensionToWebview({
       type: "conversation-turns-update",
       data: {
-        turns: [{ entryId: "user-entry-1", user: "Question", agent: "Answer" }],
+        turns: [{
+          entryId: "user-entry-1",
+          messageId: "user-message-1",
+          user: "Question",
+          agent: "Answer",
+        }],
       },
     });
     const request = validateWebviewToExtension({
