@@ -6,6 +6,7 @@ import {
   getMinimapLayout,
   getMinimapOverflow,
   resolveActiveTurnIndex,
+  resolveLoadedUserIndex,
   truncateTurnPreview,
 } from "../webview/components/conversation-minimap.js";
 
@@ -54,12 +55,12 @@ suite("Webview conversation minimap", () => {
 
   test("uses equal padding within the conversation viewport", () => {
     assert.deepStrictEqual(getMinimapLayout(4, 48, 800), {
-      top: 424,
-      height: 48,
+      top: 420,
+      height: 56,
     });
     assert.deepStrictEqual(getMinimapLayout(100, 48, 800), {
-      top: 64,
-      height: 768,
+      top: 80,
+      height: 736,
     });
     assert.deepStrictEqual(getMinimapLayout(1, 48, 20), {
       top: 48,
@@ -84,6 +85,14 @@ suite("Webview conversation minimap", () => {
       before: false,
       after: false,
     });
+  });
+
+  test("maps fresh DOM messages to their persisted minimap turns", () => {
+    const rail = turns(6);
+    assert.strictEqual(resolveLoadedUserIndex(rail, "entry-4", ["msg-3", "msg-4", "msg-5"]), 1);
+    assert.strictEqual(resolveLoadedUserIndex(rail, "entry-5", ["msg-3", "msg-4", "msg-5"]), 2);
+    assert.strictEqual(resolveLoadedUserIndex(rail, "entry-1", ["msg-3", "msg-4", "msg-5"]), -1);
+    assert.strictEqual(resolveLoadedUserIndex(rail, "entry-4", ["msg-3", "entry-4", "msg-5"]), 1);
   });
 
   test("resolves the active turn by entry id when ids match", () => {

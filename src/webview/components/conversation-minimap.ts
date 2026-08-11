@@ -3,8 +3,8 @@ import type { Component } from "./types.js";
 const PREVIEW_CHARACTER_LIMIT = 700;
 const ACTIVE_TURN_TOLERANCE_PX = 8;
 const TICK_PITCH_PX = 10;
-const TRACK_PADDING_PX = 8;
-const MINIMAP_VERTICAL_PADDING_PX = 16;
+const TRACK_PADDING_PX = 16;
+const MINIMAP_VERTICAL_PADDING_PX = 32;
 const MINIMAP_MIN_HEIGHT_PX = 28;
 const ACTIVE_TICK_EDGE_INSET_PX = 14;
 
@@ -96,6 +96,25 @@ export function getHoverTickWidth(distance: number): number {
  * user messages mirror the tail of the turn rail, so the loaded DOM index maps
  * to `turns.length - domMessageCount + loadedIndex`.
  */
+/**
+ * Find a loaded user message for a minimap turn. Fresh messages can initially
+ * have a message id in the DOM while the rail has the persisted entry id.
+ * The loaded messages are the tail of the complete turn list, so document
+ * order provides a stable fallback until those identifiers converge.
+ */
+export function resolveLoadedUserIndex(
+  turns: readonly ConversationTurnPreview[],
+  targetEntryId: string,
+  loadedEntryIds: readonly (string | null)[],
+): number {
+  const exactIndex = loadedEntryIds.indexOf(targetEntryId);
+  if (exactIndex >= 0) { return exactIndex; }
+  const turnIndex = turns.findIndex((turn) => turn.entryId === targetEntryId);
+  const firstLoadedTurn = Math.max(0, turns.length - loadedEntryIds.length);
+  const fallbackIndex = turnIndex - firstLoadedTurn;
+  return fallbackIndex >= 0 && fallbackIndex < loadedEntryIds.length ? fallbackIndex : -1;
+}
+
 export function resolveActiveTurnIndex(
   turns: readonly ConversationTurnPreview[],
   loadedIndex: number,
@@ -302,9 +321,15 @@ export class ConversationMinimap implements Component<Record<string, never>> {
   }
 
   private findLoadedUser(entryId: string): HTMLElement | undefined {
-    return Array.from(
+    const messages = Array.from(
       this.scrollContainer.querySelectorAll<HTMLElement>(".message.user[data-entry-id]"),
-    ).find((message) => message.getAttribute("data-entry-id") === entryId);
+    );
+    const index = resolveLoadedUserIndex(
+      this.turns,
+      entryId,
+      messages.map((message) => message.getAttribute("data-entry-id")),
+    );
+    return index >= 0 ? messages[index] : undefined;
   }
 
   private updateActiveTurn(): void {
