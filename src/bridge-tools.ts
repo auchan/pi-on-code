@@ -8,7 +8,7 @@ import { getWorkspaceCwd } from "./workspace-context.js";
  *
  * Only two tools are injected to keep the tool definitions lean:
  * - `vscode_open_file` — always available so the agent can reveal files.
- * - `vscode_search_tool` — one consolidated tool that dispatches the other
+ * - `vscode_workspace_tool` — one consolidated tool that dispatches the other
  *   VS Code capabilities through an `action` parameter.
  *
  * Accepts `defineTool` and `Type` from the pi SDK so all tools use the
@@ -150,11 +150,11 @@ export function createBridgeTools(defineTool: Function, Type: any): any[] {
     }),
   );
 
-  // ── Tool: vscode_search_tool (consolidated VS Code capabilities) ───
+  // ── Tool: vscode_workspace_tool (consolidated VS Code capabilities) ───
 
   tools.push(
     defineTool({
-      name: "vscode_search_tool",
+      name: "vscode_workspace_tool",
       label: "VS Code Search Tool",
       description:
         "Consolidated VS Code inspection and editing tool. Use the action parameter to select a capability; only provide the parameters that action needs. Actions: editor_state (active editor, selection, workspace folders, open editors), selection (current selection text and range), diagnostics (LSP/lint/type errors, optional filePath), open_editors (visible editors with dirty state), workspace_folders, document_dirty (is a file open/dirty), save_document, document_symbols (outline from language server), definitions (symbol definitions at position), hover (types/signatures/docs at position), references (symbol references at position), workspace_symbols (query), code_actions (quick fixes for a range, optional start/end), apply_edit (range replacements, uses edits), format_document.",
@@ -591,7 +591,7 @@ export function createBridgeTools(defineTool: Function, Type: any): any[] {
           }
 
           default:
-            return errorResult(`Unknown vscode_search_tool action: ${params.action}`);
+            return errorResult(`Unknown vscode_workspace_tool action: ${params.action}`);
         }
       },
     }),
