@@ -82,6 +82,7 @@ export class PiWebviewPanel {
   /** Register a callback that fires when this panel/view becomes active. */
   set onActivate(cb: (() => void) | null) { this._onActivateCb = cb; }
   private _onActivateCb: (() => void) | null = null;
+  get isActive(): boolean { return this.panel?.active === true; }
 
   async show(): Promise<void> {
     if (this.panel) {

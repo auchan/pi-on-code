@@ -7,6 +7,7 @@ export interface PiSidebarSession {
   meta: string;
   active: boolean;
   streaming: boolean;
+  unreadResult: boolean;
   kind: "open" | "past";
   path?: string;
   referenceId?: string;
@@ -542,15 +543,22 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
     }
 
     .meta { color: var(--pi-muted); font-size: 10px; font-weight: 400; white-space: nowrap; }
-    .streaming-dot {
+    .streaming-dot,
+    .unread-result-dot {
       width: 5px;
       height: 5px;
       margin-right: 6px;
       display: inline-block;
+      vertical-align: 1px;
+    }
+    .streaming-dot {
       background: var(--pi-green);
       box-shadow: 0 0 0 0 transparent;
-      vertical-align: 1px;
       animation: session-breathe 1.8s ease-in-out infinite;
+    }
+    .unread-result-dot {
+      background: var(--pi-lavender);
+      transform: rotate(45deg);
     }
 
     @keyframes session-breathe {
@@ -906,9 +914,11 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
         chevron.textContent = "›";
         const title = document.createElement("span");
         title.className = "title";
-        if (session.streaming) {
+        if (session.streaming || session.unreadResult) {
           const dot = document.createElement("span");
-          dot.className = "streaming-dot";
+          dot.className = session.streaming ? "streaming-dot" : "unread-result-dot";
+          dot.title = session.streaming ? "Session is working" : "Result ready to review";
+          dot.setAttribute("aria-label", dot.title);
           title.appendChild(dot);
         }
         title.appendChild(document.createTextNode(session.title));
