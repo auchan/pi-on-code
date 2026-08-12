@@ -723,11 +723,15 @@ export class PiService {
     piLog(`Initial model: ${model.provider}/${model.id}`);
 
     // ── Step 6: Session tools ──────────────────────────
+    // Only the VS Code bridge tool is injected as a custom tool. The Pi SDK's
+    // default session construction (AgentSession._buildRuntime) already creates
+    // the built-in tools (read/bash/edit/write) and passes the configured
+    // shellPath from settings.json to the bash tool; duplicating
+    // SDK.createCodingTools here would drop that shellPath.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let tools: any[];
     try {
       tools = [
-        ...SDK.createCodingTools(cwd),
         ...createBridgeTools(SDK.defineTool, Type),
       ];
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
