@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.9
+
+- Bash 工具改由 Pi SDK 的默认会话构造创建，`settings.json` 中的 `shellPath` 设置现在生效，可指定自定义 shell（如安装在非默认位置的 Git Bash）。
+- 会话列表会标记存在未查看结果的会话。
+- 新增简体中文 README（`README.zh-CN.md`）及 Issue 驱动的开发说明：在 GitHub Issues 中提交需求或 Bug，pi-claw agent 会自动完成开发或修复。
+
 ## 0.2.8
 
 - Consolidated the 16 VS Code bridge tools into a single `vscode_workspace_tool` with a CLI-style `help` listing, roughly halving the per-request tool-definition token cost.
