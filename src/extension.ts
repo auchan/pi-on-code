@@ -20,6 +20,7 @@ import type { WorkspaceFileItem } from "./shared/protocol.js";
 import { extractSessionId } from "./session-reference.js";
 import { shouldRevealSessionPanel } from "./session-startup.js";
 import { findReusableDraft, shouldPromoteDraft } from "./session-draft.js";
+import { isSessionResultUnread } from "./session-result-notification.js";
 import {
   clearProviderApiKeys,
   storeProviderApiKey,
@@ -34,6 +35,8 @@ interface SessionWindow {
   webviewPanel: PiWebviewPanel;
   initialized: boolean;
   isStreaming: boolean;
+  /** A completed background result that has not been viewed yet. */
+  unreadResult: boolean;
   /** Not listed or persisted until the first user prompt is sent. */
   draft: boolean;
   /** True after the session is removed, including while async initialization settles. */
@@ -52,8 +55,37 @@ const sessions: SessionWindow[] = [];
 let sessionCounter = 0;
 /** Cached extension context — set once in activate(), used throughout. */
 let extContext: vscode.ExtensionContext | null = null;
+const unreadSessionPaths = new Set<string>();
+const unreadSessionPathsKey = "pi-on-code.unreadSessionResultPaths";
 /** Prevent panel-dispose callbacks from overwriting saved state during shutdown. */
 let isDeactivating = false;
+
+function getSessionPath(sw: SessionWindow): string | undefined {
+  return sw.piService.sessionFilePath ?? sw.restoringPath;
+}
+
+function persistUnreadSessionPaths(): void {
+  void extContext?.workspaceState.update(unreadSessionPathsKey, [...unreadSessionPaths]);
+}
+
+function setSessionResultUnread(sw: SessionWindow, unread: boolean): void {
+  const sessionPath = getSessionPath(sw);
+  if (sw.unreadResult === unread && (!sessionPath || unreadSessionPaths.has(sessionPath) === unread)) { return; }
+  sw.unreadResult = unread;
+  if (sessionPath) {
+    if (unread) { unreadSessionPaths.add(sessionPath); }
+    else { unreadSessionPaths.delete(sessionPath); }
+    persistUnreadSessionPaths();
+  }
+  sessionTreeProvider?.refreshSession(sw);
+  sessionSidebarProvider?.refresh();
+}
+
+function clearUnreadSessionPath(sessionPath: string | undefined): void {
+  if (!sessionPath || !unreadSessionPaths.delete(sessionPath)) { return; }
+  persistUnreadSessionPaths();
+  sessionSidebarProvider?.refresh();
+}
 
 /** Persist the set of open session file paths so they can be restored on reload. */
 async function saveOpenSessionPaths(): Promise<void> {
@@ -183,6 +215,7 @@ function getSidebarState(): PiSidebarState {
       meta: sw.isStreaming ? "now" : formatRelativeAge(getFileModifiedTime(sessionPath)),
       active: activeSessionWindow === sw,
       streaming: sw.isStreaming,
+      unreadResult: sw.unreadResult,
       kind: "open",
       path: sessionPath,
       referenceId: sw.piService.sessionIdValue ?? readSessionId(sessionPath),
@@ -204,6 +237,7 @@ function getSidebarState(): PiSidebarState {
       meta: formatRelativeAge(session.modified ?? session.created),
       active: false,
       streaming: false,
+      unreadResult: unreadSessionPaths.has(session.path),
       kind: "past",
       path: session.path,
       referenceId: readSessionId(session.path),
@@ -260,6 +294,7 @@ async function deleteSessionFileIfPresent(filePath: string | null | undefined): 
   } catch (error: unknown) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") { throw error; }
   }
+  clearUnreadSessionPath(filePath);
 }
 
 async function deleteSidebarSession(target: PiSidebarDeleteTarget): Promise<void> {
@@ -342,7 +377,9 @@ function createSessionWindow(
   webviewPanel.initialWelcomeVisible = draft;
   const sw: SessionWindow = {
     id, piService, webviewPanel,
-    initialized: false, isStreaming: false, draft,
+    initialized: false, isStreaming: false,
+    unreadResult: restore?.path ? unreadSessionPaths.has(restore.path) : false,
+    draft,
     closed: false, deleteFileWhenReady: false,
     restoringPath: restore?.path,
     label: restore?.title ? cleanSessionTitle(restore.title) : getGenericSessionLabel(id),
@@ -350,7 +387,10 @@ function createSessionWindow(
   };
 
   // Track when this panel becomes active
-  webviewPanel.onActivate = () => setActiveSession(sw);
+  webviewPanel.onActivate = () => {
+    setActiveSession(sw);
+    setSessionResultUnread(sw, false);
+  };
 
   // When the webview panel is closed (tab closed):
   // 1. Save the session to disk
@@ -399,6 +439,11 @@ function handlePanelDispose(sw: SessionWindow): (piService: PiService) => void {
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   extContext = context;
+  unreadSessionPaths.clear();
+  for (const sessionPath of context.workspaceState.get<string[]>(unreadSessionPathsKey) ?? []) {
+    if (fs.existsSync(sessionPath)) { unreadSessionPaths.add(sessionPath); }
+  }
+  persistUnreadSessionPaths();
   isDeactivating = false;
   console.log("[pi-on-code] Extension activating...");
 
@@ -484,6 +529,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       sessionSidebarProvider,
       { webviewOptions: { retainContextWhenHidden: true } },
     ),
+    vscode.window.onDidChangeWindowState((state) => {
+      if (!state.focused) { return; }
+      for (const sw of sessions) {
+        if (sw.webviewPanel.isActive) { setSessionResultUnread(sw, false); }
+      }
+    }),
   );
 
   // Never block activate() waiting for a workspace. Extension development
@@ -523,6 +574,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const primary = primarySession();
       if (primary) {
         setActiveSession(primary);
+        setSessionResultUnread(primary, false);
         void primary.webviewPanel.show();
       } else {
         addSession(context);
@@ -541,6 +593,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const sw = sessions.find((s) => s.id === sessionId);
       if (sw) {
         setActiveSession(sw);
+        setSessionResultUnread(sw, false);
         void sw.webviewPanel.show();
       }
     }),
@@ -900,7 +953,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           title: summary?.name ?? summary?.firstMessage,
         }, false, summary?.cwd ?? getWorkspaceCwd());
         setActiveSession(sw);
-        void sw.webviewPanel.show();
+        await sw.webviewPanel.show();
+        setSessionResultUnread(sw, false);
         sessionTreeProvider?.refresh();
         void initSessionInBackground(context, sw, { openPath: resolved });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -941,7 +995,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       );
       if (confirm !== "Delete") { return; }
       try {
-        await PiService.deleteSessionFile(resolved);
+        await deleteSessionFileIfPresent(resolved);
         await refreshPastSessionsList();
         sessionTreeProvider?.refreshPastOnly();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -967,7 +1021,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (confirm !== "Delete All") { return; }
       try {
         for (const s of past) {
-          await PiService.deleteSessionFile(s.path);
+          await deleteSessionFileIfPresent(s.path);
         }
         await refreshPastSessionsList();
         sessionTreeProvider?.refresh();
@@ -1666,13 +1720,26 @@ async function initSessionInBackground(context: vscode.ExtensionContext, sw: Ses
 
     if (event.type === "agent-start") {
       sw.isStreaming = true;
+      if (sw.webviewPanel.isActive && vscode.window.state.focused) {
+        setSessionResultUnread(sw, false);
+      }
       changed = true;
     } else if (event.type === "agent-end") {
       sw.isStreaming = false;
+      setSessionResultUnread(sw, isSessionResultUnread(
+        sw.webviewPanel.isActive,
+        vscode.window.state.focused,
+      ));
       changed = true;
     } else if (event.type === "status-update" && event.data) {
       const was = sw.isStreaming;
       sw.isStreaming = !!event.data.isStreaming;
+      if (was && !sw.isStreaming) {
+        setSessionResultUnread(sw, isSessionResultUnread(
+          sw.webviewPanel.isActive,
+          vscode.window.state.focused,
+        ));
+      }
       if (was !== sw.isStreaming || (sw.piService.sessionName && sw.piService.sessionName !== sw.label)) {
         changed = true;
       }
@@ -2004,8 +2071,9 @@ class MultiSessionTreeProvider implements vscode.TreeDataProvider<SessionTreeIte
       ?? sw.webviewPanel.summary
       ?? getGenericSessionLabel(sw.id);
 
+    const statusMarker = sw.isStreaming ? "\u25CF " : sw.unreadResult ? "\u25C6 " : "\u25CB ";
     const label = sw.initialized
-      ? ((sw.isStreaming ? "\u25CF " : "\u25CB ") + sessionName)
+      ? statusMarker + sessionName
       : `${sessionName}: initializing...`;
 
     // Cache the label for use in panel title updates
@@ -2027,7 +2095,7 @@ class MultiSessionTreeProvider implements vscode.TreeDataProvider<SessionTreeIte
       item.collapsibleState = collapsible;
       item.description = sw.initialized ? (sw.piService.model?.id ?? "...") : "initializing";
       item.tooltip = new vscode.MarkdownString(
-        `**${sw.id}**\n\nModel: ${sw.piService.model?.id ?? "-"}\nThinking: ${sw.piService.thinkingLevel}\nEntries: ${entryCount}\nInitialized: ${sw.initialized}\nStreaming: ${sw.isStreaming}`,
+        `**${sw.id}**\n\nModel: ${sw.piService.model?.id ?? "-"}\nThinking: ${sw.piService.thinkingLevel}\nEntries: ${entryCount}\nInitialized: ${sw.initialized}\nStreaming: ${sw.isStreaming}\nResult ready: ${sw.unreadResult}`,
       );
     } else {
       item = new SessionTreeItem(
@@ -2044,7 +2112,7 @@ class MultiSessionTreeProvider implements vscode.TreeDataProvider<SessionTreeIte
       item.sessionId = sw.id;
       item.description = sw.initialized ? (sw.piService.model?.id ?? "...") : "initializing";
       item.tooltip = new vscode.MarkdownString(
-        `**${sw.id}**\n\nModel: ${sw.piService.model?.id ?? "-"}\nThinking: ${sw.piService.thinkingLevel}\nEntries: ${entryCount}\nInitialized: ${sw.initialized}\nStreaming: ${sw.isStreaming}`,
+        `**${sw.id}**\n\nModel: ${sw.piService.model?.id ?? "-"}\nThinking: ${sw.piService.thinkingLevel}\nEntries: ${entryCount}\nInitialized: ${sw.initialized}\nStreaming: ${sw.isStreaming}\nResult ready: ${sw.unreadResult}`,
       );
       this._sessionItems.set(sw.id, item);
     }
@@ -2194,9 +2262,10 @@ class MultiSessionTreeProvider implements vscode.TreeDataProvider<SessionTreeIte
       },
     );
     item.description = desc;
-    item.iconPath = new vscode.ThemeIcon("archive");
+    const unreadResult = unreadSessionPaths.has(s.path);
+    item.iconPath = new vscode.ThemeIcon(unreadResult ? "bell-dot" : "archive");
     item.tooltip = new vscode.MarkdownString(
-      `**${s.name || "Session"}**\n\nPath: \`${s.path}\`\nMessages: ${msgCount}\nCreated: ${s.created ? new Date(s.created).toLocaleString() : "-"}\nModified: ${s.modified ? new Date(s.modified).toLocaleString() : "-"}`,
+      `**${s.name || "Session"}**\n\nPath: \`${s.path}\`\nMessages: ${msgCount}\nCreated: ${s.created ? new Date(s.created).toLocaleString() : "-"}\nModified: ${s.modified ? new Date(s.modified).toLocaleString() : "-"}\nResult ready: ${unreadResult}`,
     );
     item.contextValue = "pastSessionEntry";
     return item;
