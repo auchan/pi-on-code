@@ -27,6 +27,8 @@ Pi on Code 是面向 VS Code 的 Pi 原生编程智能体（coding-agent）扩�
 
 ## Issue 驱动的开发
 
+![Pi on Code GitHub Issues](media/pi-on-code-github-issues.png)
+
 如果你有**新需求**或**发现了 Bug**，直接在 [GitHub Issues](https://github.com/auchan/pi-on-code/issues) 中提交 Issue 即可：
 
 - **描述需求**：说明你希望新增的功能或改进。

@@ -37,6 +37,21 @@ language while supporting both dark and light editor themes.
 - Track model, thinking, effort, context usage, active extensions, and agent
   activity without adding a separate conversation header.
 
+## Issue-driven development
+
+Have a new feature idea or found a bug? File an issue in the
+[GitHub issue tracker](https://github.com/auchan/pi-on-code/issues):
+
+- Describe the feature or improvement you would like.
+- Report the bug with reproduction steps and expected vs. actual behavior.
+
+The **pi-claw agent** in this repository reads your issue automatically,
+analyzes the request or reproduces the bug, implements the change on a
+dedicated branch, and opens a pull request. Just describe what you need and
+the agent takes care of the rest.
+
+![Pi on Code GitHub Issues](media/pi-on-code-github-issues.png)
+
 ## Install
 
 Install **Pi on Code** from the Visual Studio Marketplace, or run:
