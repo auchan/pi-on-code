@@ -1,5 +1,7 @@
 # Pi on Code
 
+[简体中文](README.zh-CN.md) | English
+
 Pi on Code is a Pi-native coding-agent extension for VS Code. It brings Pi's
 sessions, package ecosystem, extension runtime, and agent workflow into a
 first-class editor workspace instead of wrapping them in a generic chat UI.
