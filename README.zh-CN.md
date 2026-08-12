@@ -1,5 +1,7 @@
 # Pi on Code
 
+[English](README.md) | 简体中文
+
 Pi on Code 是面向 VS Code 的 Pi 原生编程智能体（coding-agent）扩展。它把 Pi 的会话（Session）、Package 生态、扩展运行时与智能体工作流带到了一流的编辑器工作区中，而不是包装成普通的聊天界面。
 
 它结合了持久化的多会话对话、丰富的流式工具输出、Package 与扩展管理，以及对 VS Code 代码智能的直接访问。界面遵循 Pi 紧凑的终端风格视觉语言，同时支持深色与浅色主题。
