@@ -2,6 +2,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import { appendEditorContext, truncateUtf8, type PromptEditorContext } from "./editor-context.js";
 import { resolveFileLinkPath } from "./file-link.js";
+import { getLocalMarkdownImagePath } from "./local-markdown-image.js";
 import { mergeInitialHistoryEvents } from "./history-event-sync.js";
 import { SessionCapabilitySnapshot } from "./capability-snapshot.js";
 import { piError } from "./logger.js";
@@ -107,6 +108,7 @@ export class PiWebviewPanel {
         retainContextWhenHidden: true,
         localResourceRoots: [
           vscode.Uri.joinPath(this.context.extensionUri, "media"),
+          ...(vscode.workspace.workspaceFolders?.map((folder) => folder.uri) ?? []),
         ],
       }
     );
@@ -623,6 +625,10 @@ export class PiWebviewPanel {
             void this.openFileLink(message.path);
             break;
 
+          case "resolveLocalImage":
+            this.resolveLocalImage(message.path, message.requestId);
+            break;
+
           // Slash commands intercepted locally (not sent to LLM)
           case "slashCommand":
             void this.handleSlashCommand(message.command);
@@ -712,6 +718,17 @@ export class PiWebviewPanel {
       undefined,
       this.disposables
     );
+  }
+
+  private resolveLocalImage(href: string, requestId: string): void {
+    const filePath = getLocalMarkdownImagePath(href);
+    if (!filePath) { return; }
+    const uri = vscode.Uri.file(filePath);
+    if (!vscode.workspace.getWorkspaceFolder(uri)) { return; }
+    this.panel?.webview.postMessage({
+      type: "localImageResolved",
+      data: { requestId, src: this.panel.webview.asWebviewUri(uri).toString() },
+    });
   }
 
   private async openFileLink(filePath: string): Promise<void> {
