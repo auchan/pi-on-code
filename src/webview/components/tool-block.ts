@@ -62,7 +62,9 @@ export class ToolBlock implements Component<ToolBlockProps> {
         <span class="tool-name">${props.toolName}</span>
         <span class="tool-path" data-path="${fp}" title="Click to open file"${pathDisplay ? "" : " hidden"}>${pathDisplay}${props.pathExtra || ""}</span>
         <span class="tool-header-arguments"${props.headerArguments ? "" : " hidden"}>${props.headerArguments || ""}</span>
-        <span class="tool-status ${props.status || "pending"}">${props.status || "pending"}</span>
+        <span class="tool-header-actions">
+          <span class="tool-status ${props.status || "pending"}">${props.status || "pending"}</span>
+        </span>
       </div>
       <div class="tool-content"></div>
       <div class="tool-result"></div>`;

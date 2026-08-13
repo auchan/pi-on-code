@@ -773,7 +773,7 @@ export const bashToolRenderer = {
       block.setAttribute("data-status", "running");
       var cmd = (data.args?.command as string) || "";
       block.innerHTML = html`
-        <div class="bash-header"><span class="bash-prompt">$</span><span class="bash-command">${cmd}</span><span class="bash-status">running</span></div>
+        <div class="bash-header"><span class="bash-prompt">$</span><span class="bash-command">${cmd}</span><span class="tool-header-actions"><span class="bash-status">running</span></span></div>
         <div class="bash-output"></div>
         <div class="bash-footer"><span class="bash-spinner"></span> <span class="cancel-hint">running\u2026</span></div>`;
       state.bashBlocks[data.toolCallId] = block;
@@ -878,6 +878,7 @@ export function addToolCallCopyButton(
 
     const header = block.querySelector<HTMLElement>(".tool-header, .bash-header");
     if (!header) { return; }
+    const actions = header.querySelector<HTMLElement>(".tool-header-actions") ?? header;
     const button = existing ?? document.createElement("button");
     button.type = "button";
     button.className = "tool-arguments-copy";
@@ -886,7 +887,7 @@ export function addToolCallCopyButton(
     button.setAttribute("aria-label", "Copy tool call");
     button.dataset.copyLabel = "Copy";
     (button as HTMLButtonElement & { _copyText?: string })._copyText = copyText;
-    if (!existing) { header.appendChild(button); }
+    if (!existing) { actions.appendChild(button); }
   }
 
 export function handleToolStart(data: any) {

@@ -2798,6 +2798,11 @@ html.pi-viewport-recovering #pi-web-app {
 .tool-block .tool-status,
 .bash-execution .bash-status {
   flex: 0 0 auto;
+}
+
+.tool-header-actions {
+  position: relative;
+  flex: 0 0 auto;
   margin-left: auto;
 }
 
@@ -2832,7 +2837,7 @@ html.pi-viewport-recovering #pi-web-app {
   position: absolute;
   z-index: 1;
   top: 50%;
-  right: 0;
+  right: calc(100% + 6px);
   transform: translateY(-50%);
   opacity: 0;
   padding: 1px 5px;
