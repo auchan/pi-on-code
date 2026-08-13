@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: write
+  issues: read
+  pull-requests: read
 
 concurrency:
   group: extension-release
@@ -56,6 +58,12 @@ jobs:
           path: artifacts/*.vsix
           if-no-files-found: error
 
+      - name: Generate GitHub release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/generate-release-notes.mjs release-notes.md
+
       - name: Publish to VS Code Marketplace
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -68,5 +76,5 @@ jobs:
         shell: bash
         run: |
           gh release create "${GITHUB_REF_NAME}" artifacts/*.vsix \
-            --generate-notes \
+            --notes-file release-notes.md \
             --verify-tag

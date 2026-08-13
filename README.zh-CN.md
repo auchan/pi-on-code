@@ -103,7 +103,7 @@ bun run install:vsix
 
 发布完全由 CI 驱动——无需本地发布步骤。
 
-1. 将 `chore/release-<version>` 的 PR 合并到 `main`（它会更新 `package.json`、manifest 测试与 `CHANGELOG.md`）。
+1. 将 `chore/release-<version>` 的 PR 合并到 `main`（它会更新 `package.json`、manifest 测试与 `CHANGELOG.md`）。功能和修复 PR 应使用 `Closes #<issue>` 或 `Fixes #<issue>` 关联 Issue，以便发布工作流自动感谢 Issue 提交者。
 2. 为合并提交打标签并推送：
 
    ```powershell
@@ -111,7 +111,7 @@ bun run install:vsix
    git push origin v<version>
    ```
 
-3. `release.yml` 工作流随后会自动构建 VSIX、运行集成测试、发布到 VS Code Marketplace 并创建 GitHub Release。
+3. `release.yml` 工作流随后会自动构建 VSIX、运行集成测试、生成包含关联 Issue 提交者致谢的发布说明、发布到 VS Code Marketplace 并创建 GitHub Release。
 
 发布时不要在本地运行 `bun scripts/publish-vsix.mjs` 或 `gh release create`：CI 管线负责这两个步骤，本地发布会与之冲突（例如当标签已存在手动创建的 Release 时，工作流的发布创建会失败）。
 
