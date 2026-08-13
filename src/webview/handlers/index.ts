@@ -38,7 +38,8 @@ import {
   handleToolStart, handleToolUpdate, handleToolEnd,
   writeToolRenderer, editToolRenderer, readToolRenderer,
   bashToolRenderer, defaultToolRenderer,
-  insertToolBlock, applyAutoToolResultCollapse, addToolOutputCopyButton,
+  insertToolBlock, applyAutoToolResultCollapse,
+  addToolCallCopyButton, addToolOutputCopyButton,
 } from "../tools/index.js";
 
 
@@ -3087,11 +3088,20 @@ export function handleBashStart(data: Record<string, unknown>) {
     // DEDUP: If tool-start already created a block for this callId, don't create a second.
     if (state.currentToolBlocks[callId as string]) {
       var entry = state.currentToolBlocks[callId as string];
-      state.bashBlocks[callId as string] = (entry as any).el || entry;
+      var existingBlock = (entry as any).el || entry;
+      state.bashBlocks[callId as string] = existingBlock;
       state.bashOutputs[callId as string] = state.bashOutputs[callId as string] || "";
+      addToolCallCopyButton(existingBlock, "bash", { command: data.command || "" });
       return;
     }
-    if (state.bashBlocks[callId as string]) {return;}
+    if (state.bashBlocks[callId as string]) {
+      addToolCallCopyButton(
+        state.bashBlocks[callId as string],
+        "bash",
+        { command: data.command || "" },
+      );
+      return;
+    }
 
     var block = bashToolRenderer.create({
       toolName: "bash",
@@ -3100,6 +3110,7 @@ export function handleBashStart(data: Record<string, unknown>) {
       entryId: data.entryId as string,
       fromMessage: false,
     });
+    addToolCallCopyButton(block as HTMLElement, "bash", { command: data.command || "" });
     applyAutoToolResultCollapse(block as HTMLElement);
     insertToolBlock(block as HTMLElement);
     state.bashBlocks[callId as string] = block;

@@ -1,6 +1,6 @@
 import * as assert from "node:assert";
 import {
-  formatToolArgumentsForCopy,
+  formatToolCallForCopy,
   formatToolHeaderArguments,
   resolveToolTitle,
 } from "../webview/render/tool-title.js";
@@ -43,12 +43,19 @@ suite("Webview tool card title", () => {
     assert.strictEqual(formatToolHeaderArguments(), undefined);
   });
 
-  test("serializes complete tool arguments for copying", () => {
+  test("serializes complete tool calls for copying", () => {
     assert.strictEqual(
-      formatToolArgumentsForCopy({ query: "recent errors", limit: 10 }),
-      '{\n  "query": "recent errors",\n  "limit": 10\n}',
+      formatToolCallForCopy("mcp", { tool: "chrome_click", args: { uid: "1_2" } }),
+      'mcp {\n  "tool": "chrome_click",\n  "args": {\n    "uid": "1_2"\n  }\n}',
     );
-    assert.strictEqual(formatToolArgumentsForCopy({}), "{}");
-    assert.strictEqual(formatToolArgumentsForCopy(), undefined);
+    assert.strictEqual(formatToolCallForCopy("read", {}), "read {}");
+    assert.strictEqual(formatToolCallForCopy("read"), undefined);
+  });
+
+  test("copies only the command for bash calls", () => {
+    assert.strictEqual(
+      formatToolCallForCopy("bash", { command: "bun run build", timeout: 600 }),
+      "bun run build",
+    );
   });
 });

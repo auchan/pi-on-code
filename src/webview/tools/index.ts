@@ -13,7 +13,7 @@ import {
 import { highlightCode } from "../highlight.js";
 import { html, safe } from "../render/html.js";
 import {
-  formatToolArgumentsForCopy,
+  formatToolCallForCopy,
   formatToolHeaderArguments,
   resolveToolTitle,
   updateToolBlockArguments,
@@ -863,12 +863,13 @@ export const bashToolRenderer = {
   // ═══ Message Renderer Registry ════════════════════════════
   // ═══ Tool Lifecycle ════════════════════════════════════
 
-export function addToolArgumentsCopyButton(
+export function addToolCallCopyButton(
   block: HTMLElement,
+  toolName: string,
   args?: Record<string, unknown>,
 ): void {
     if (!args) { return; }
-    const copyText = formatToolArgumentsForCopy(args);
+    const copyText = formatToolCallForCopy(toolName, args);
     const existing = block.querySelector<HTMLButtonElement>(".tool-arguments-copy");
     if (!copyText) {
       existing?.remove();
@@ -880,10 +881,10 @@ export function addToolArgumentsCopyButton(
     const button = existing ?? document.createElement("button");
     button.type = "button";
     button.className = "tool-arguments-copy";
-    button.textContent = "Copy args";
-    button.title = "Copy tool arguments";
-    button.setAttribute("aria-label", "Copy tool arguments");
-    button.dataset.copyLabel = "Copy args";
+    button.textContent = "Copy";
+    button.title = "Copy tool call";
+    button.setAttribute("aria-label", "Copy tool call");
+    button.dataset.copyLabel = "Copy";
     (button as HTMLButtonElement & { _copyText?: string })._copyText = copyText;
     if (!existing) { header.appendChild(button); }
   }
@@ -993,7 +994,7 @@ export function handleToolStart(data: any) {
           }
         }
       }
-      addToolArgumentsCopyButton(block, data.args);
+      addToolCallCopyButton(block, data.toolName, data.args);
 
       if (data.entryId && block && block.id && !block.id.startsWith("entry-")) {
         block.id = "entry-" + data.entryId;
@@ -1006,7 +1007,7 @@ export function handleToolStart(data: any) {
     var renderer = getToolRenderer(data.toolName) || defaultToolRenderer;
     var block = (renderer as any).create(data);
     if (!block) { console.warn("[pi-on-code] tool renderer returned null for", data.toolName); return; }
-    addToolArgumentsCopyButton(block, data.args);
+    addToolCallCopyButton(block, data.toolName, data.args);
     applyAutoToolResultCollapse(block);
 
     if (data.entryId && !block.id.startsWith("entry-")) {

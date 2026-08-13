@@ -29,11 +29,15 @@ export function formatToolHeaderArguments(args?: Record<string, unknown>): strin
   }
 }
 
-/** Serialize complete tool arguments for clipboard copying. */
-export function formatToolArgumentsForCopy(args?: Record<string, unknown>): string | undefined {
+/** Serialize a complete tool invocation for clipboard copying. */
+export function formatToolCallForCopy(
+  toolName: string,
+  args?: Record<string, unknown>,
+): string | undefined {
   if (!args) { return undefined; }
+  if (toolName === "bash" && typeof args.command === "string") { return args.command; }
   try {
-    return JSON.stringify(args, null, 2);
+    return `${toolName} ${JSON.stringify(args, null, 2)}`;
   } catch {
     return undefined;
   }
