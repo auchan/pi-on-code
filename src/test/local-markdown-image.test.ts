@@ -1,7 +1,10 @@
 import * as assert from "node:assert";
+import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import {
   getLocalMarkdownImagePath,
+  getMarkdownImageMediaType,
   resolveMarkdownImagePath,
 } from "../local-markdown-image.js";
 
@@ -23,38 +26,66 @@ suite("Local Markdown images", () => {
     assert.strictEqual(getLocalMarkdownImagePath("not a URL"), undefined);
   });
 
-  test("resolves workspace-relative paths including backslashes", () => {
-    const root = path.resolve("/workspace");
-    assert.strictEqual(
-      resolveMarkdownImagePath("media\\architecture.png", [root]),
-      path.join(root, "media", "architecture.png"),
+  test("removes invisible direction characters from copied file URLs", () => {
+    const pathWithDirectionMark = getLocalMarkdownImagePath(
+      "file:///\u202AE:/workroom/image-gen/final/impostor-color.png",
     );
-    assert.strictEqual(
-      resolveMarkdownImagePath("media/architecture.png", [root]),
-      path.join(root, "media", "architecture.png"),
+    const encodedDirectionMark = getLocalMarkdownImagePath(
+      "file:///%E2%80%AAE:/workroom/image-gen/final/impostor-color.png",
     );
-    assert.strictEqual(
-      resolveMarkdownImagePath("docs/../media/a.png", [root]),
-      path.join(root, "media", "a.png"),
-    );
+    const expected = process.platform === "win32"
+      ? "E:/workroom/image-gen/final/impostor-color.png"
+      : "/E:/workroom/image-gen/final/impostor-color.png";
+    assert.strictEqual(pathWithDirectionMark, expected);
+    assert.strictEqual(encodedDirectionMark, expected);
   });
 
-  test("accepts absolute paths and passes security to the sandbox", () => {
-    const root = path.resolve("/workspace");
-    assert.strictEqual(
-      resolveMarkdownImagePath("C:\\Users\\me\\pic.png", [root]),
-      "C:/Users/me/pic.png",
-    );
-    assert.strictEqual(
-      resolveMarkdownImagePath("/etc/screenshots/a.png", [root]),
-      "/etc/screenshots/a.png",
-    );
+  test("maps supported image extensions to media types", () => {
+    assert.strictEqual(getMarkdownImageMediaType("picture.png"), "image/png");
+    assert.strictEqual(getMarkdownImageMediaType("picture.SVG"), "image/svg+xml");
+    assert.strictEqual(getMarkdownImageMediaType("notes.txt"), undefined);
+  });
+
+  test("resolves relative paths against base dirs by existence", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-img-"));
+    try {
+      const nested = path.join(dir, "assets");
+      fs.mkdirSync(nested, { recursive: true });
+      fs.writeFileSync(path.join(nested, "a.png"), "x");
+      fs.writeFileSync(path.join(dir, "b.png"), "x");
+
+      // First base has no file, second base does.
+      assert.strictEqual(
+        resolveMarkdownImagePath("assets/a.png", [dir + "-missing", dir]),
+        path.join(nested, "a.png"),
+      );
+      // Backslash separators.
+      assert.strictEqual(
+        resolveMarkdownImagePath("assets\\a.png", [dir]),
+        path.join(nested, "a.png"),
+      );
+      // Nonexistent relative file stays unresolved.
+      assert.strictEqual(resolveMarkdownImagePath("assets/nope.png", [dir]), undefined);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("accepts absolute paths including outside-workspace files", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-img-"));
+    try {
+      const file = path.join(dir, "pic.png");
+      fs.writeFileSync(file, "x");
+      // Absolute path passes through regardless of bases (normalized slashes).
+      assert.strictEqual(resolveMarkdownImagePath(file, ["/nope"]), file.replace(/\\/g, "/"));
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test("keeps external protocols unresolved", () => {
-    const root = path.resolve("/workspace");
-    assert.strictEqual(resolveMarkdownImagePath("https://example.com/a.png", [root]), undefined);
-    assert.strictEqual(resolveMarkdownImagePath("data:image/png;base64,AAA", [root]), undefined);
-    assert.strictEqual(resolveMarkdownImagePath("media/notes.txt", [root]), undefined);
+    assert.strictEqual(resolveMarkdownImagePath("https://example.com/a.png", ["/w"]), undefined);
+    assert.strictEqual(resolveMarkdownImagePath("data:image/png;base64,AAA", ["/w"]), undefined);
+    assert.strictEqual(resolveMarkdownImagePath("media/notes.txt", ["/w"]), undefined);
   });
 });

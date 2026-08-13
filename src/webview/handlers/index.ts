@@ -126,7 +126,8 @@ function handleExtensionMessage(msg: any): void {
     // Skip validation for high-frequency streaming types to avoid
     // per-token overhead (every delta would parse the full union).
     var skipValidation = msg.type === "stream-delta" || msg.type === "thinking-delta" ||
-                         msg.type === "tool-update" || msg.type === "bash-output";
+                         msg.type === "tool-update" || msg.type === "bash-output" ||
+                         msg.type === "localImageResolved";
     if (!skipValidation) {
       var vr = validateExtensionToWebview(msg);
       if (!vr.success) {
@@ -146,6 +147,8 @@ function handleExtensionMessage(msg: any): void {
         eventCount: Array.isArray(msg.data?.events) ? msg.data.events.length : 0,
         hasMoreHistory: msg.data?.hasMoreHistory === true,
       });
+    } else if (msg.type === "localImageResolved") {
+      logEvent("recv:localImageResolved", { requestId: msg.data?.requestId });
     } else if (msg.type !== "stream-delta" && msg.type !== "thinking-delta" && msg.type !== "tool-update" && msg.type !== "bash-output") {
       logEvent("recv:" + msg.type, msg.data || msg);
     }
