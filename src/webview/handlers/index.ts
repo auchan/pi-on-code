@@ -368,13 +368,15 @@ export function handleTurnEnd(data: any) {
 let localImageRequestCounter = 0;
 
 function requestLocalMarkdownImages(root: ParentNode = document): void {
-    root.querySelectorAll<HTMLImageElement>('img[src^="file:"]').forEach((image) => {
+    root.querySelectorAll<HTMLImageElement>('img[src]').forEach((image) => {
       if (image.dataset.localImageRequest) { return; }
-      const path = image.getAttribute("src");
-      if (!path) { return; }
+      const src = image.getAttribute("src");
+      if (!src) { return; }
+      // Skip already-resolved or non-local sources (http, data, webview URIs).
+      if (/^(https?:|data:|blob:|vscode-webview:|vscode-resource:)/i.test(src)) { return; }
       const requestId = `local-image-${++localImageRequestCounter}`;
       image.dataset.localImageRequest = requestId;
-      window.__vscode.postMessage({ type: "resolveLocalImage", path, requestId });
+      window.__vscode.postMessage({ type: "resolveLocalImage", path: src, requestId });
     });
   }
 

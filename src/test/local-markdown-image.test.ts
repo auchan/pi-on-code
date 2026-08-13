@@ -1,5 +1,9 @@
 import * as assert from "node:assert";
-import { getLocalMarkdownImagePath } from "../local-markdown-image.js";
+import * as path from "node:path";
+import {
+  getLocalMarkdownImagePath,
+  resolveMarkdownImagePath,
+} from "../local-markdown-image.js";
 
 suite("Local Markdown images", () => {
   test("accepts file URLs for supported image types", () => {
@@ -17,5 +21,29 @@ suite("Local Markdown images", () => {
     assert.strictEqual(getLocalMarkdownImagePath("https://example.com/image.png"), undefined);
     assert.strictEqual(getLocalMarkdownImagePath("file:///workspace/.env"), undefined);
     assert.strictEqual(getLocalMarkdownImagePath("not a URL"), undefined);
+  });
+
+  test("resolves workspace-relative paths including backslashes", () => {
+    const root = path.resolve("/workspace");
+    assert.strictEqual(
+      resolveMarkdownImagePath("media\\architecture.png", [root]),
+      path.join(root, "media", "architecture.png"),
+    );
+    assert.strictEqual(
+      resolveMarkdownImagePath("media/architecture.png", [root]),
+      path.join(root, "media", "architecture.png"),
+    );
+    assert.strictEqual(
+      resolveMarkdownImagePath("docs/../media/a.png", [root]),
+      path.join(root, "media", "a.png"),
+    );
+  });
+
+  test("keeps external protocols and absolute paths unresolved", () => {
+    const root = path.resolve("/workspace");
+    assert.strictEqual(resolveMarkdownImagePath("https://example.com/a.png", [root]), undefined);
+    assert.strictEqual(resolveMarkdownImagePath("data:image/png;base64,AAA", [root]), undefined);
+    assert.strictEqual(resolveMarkdownImagePath("/etc/passwd", [root]), undefined);
+    assert.strictEqual(resolveMarkdownImagePath("media/notes.txt", [root]), undefined);
   });
 });
