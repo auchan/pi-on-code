@@ -1,5 +1,9 @@
 import * as assert from "node:assert";
-import { formatToolHeaderArguments, resolveToolTitle } from "../webview/render/tool-title.js";
+import {
+  formatToolArgumentsForCopy,
+  formatToolHeaderArguments,
+  resolveToolTitle,
+} from "../webview/render/tool-title.js";
 
 suite("Webview tool card title", () => {
   test("resolves consolidated tool titles as vscode_<action>", () => {
@@ -30,13 +34,21 @@ suite("Webview tool card title", () => {
     );
   });
 
-test("serializes generic tool arguments for header display", () => {
-  assert.strictEqual(
-    formatToolHeaderArguments({ query: "recent errors", limit: 10 }),
-    '{"query":"recent errors","limit":10}',
-  );
-  assert.strictEqual(formatToolHeaderArguments({}), undefined);
-  assert.strictEqual(formatToolHeaderArguments(), undefined);
-});
+  test("serializes generic tool arguments for header display", () => {
+    assert.strictEqual(
+      formatToolHeaderArguments({ query: "recent errors", limit: 10 }),
+      '{"query":"recent errors","limit":10}',
+    );
+    assert.strictEqual(formatToolHeaderArguments({}), undefined);
+    assert.strictEqual(formatToolHeaderArguments(), undefined);
+  });
 
+  test("serializes complete tool arguments for copying", () => {
+    assert.strictEqual(
+      formatToolArgumentsForCopy({ query: "recent errors", limit: 10 }),
+      '{\n  "query": "recent errors",\n  "limit": 10\n}',
+    );
+    assert.strictEqual(formatToolArgumentsForCopy({}), "{}");
+    assert.strictEqual(formatToolArgumentsForCopy(), undefined);
+  });
 });

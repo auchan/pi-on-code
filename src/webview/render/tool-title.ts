@@ -29,6 +29,16 @@ export function formatToolHeaderArguments(args?: Record<string, unknown>): strin
   }
 }
 
+/** Serialize complete tool arguments for clipboard copying. */
+export function formatToolArgumentsForCopy(args?: Record<string, unknown>): string | undefined {
+  if (!args) { return undefined; }
+  try {
+    return JSON.stringify(args, null, 2);
+  } catch {
+    return undefined;
+  }
+}
+
 /** Update a generic tool header with its full argument text. */
 export function updateToolBlockArguments(el: HTMLElement, args?: Record<string, unknown>): void {
   const detail = formatToolHeaderArguments(args);

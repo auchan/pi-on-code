@@ -2853,6 +2853,30 @@ html.pi-viewport-recovering #pi-web-app {
   display: none;
 }
 
+.tool-arguments-copy {
+  flex: 0 0 auto;
+  opacity: 0;
+  padding: 1px 5px;
+  border: 1px solid var(--pi-line);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--pi-muted);
+  cursor: pointer;
+  font: inherit;
+  transition: opacity 120ms ease;
+}
+
+.tool-block:hover .tool-arguments-copy,
+.bash-execution:hover .tool-arguments-copy,
+.tool-arguments-copy:focus-visible {
+  opacity: 1;
+}
+
+.tool-arguments-copy:hover {
+  border-color: var(--pi-lavender);
+  color: var(--pi-text);
+}
+
 .message.assistant {
   position: relative;
 }
