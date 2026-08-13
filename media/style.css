@@ -2919,3 +2919,20 @@ html.pi-viewport-recovering #pi-web-app {
 .bash-execution {
   position: relative;
 }
+
+/* Generic extension tools expose their arguments in the header. */
+.tool-block .tool-header-arguments {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: var(--pi-muted);
+  font-family: var(--vscode-editor-font-family);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.tool-block.auto-tool-result-collapsed .tool-header-arguments {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

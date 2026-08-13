@@ -1,5 +1,5 @@
 import * as assert from "node:assert";
-import { resolveToolTitle } from "../webview/render/tool-title.js";
+import { formatToolHeaderArguments, resolveToolTitle } from "../webview/render/tool-title.js";
 
 suite("Webview tool card title", () => {
   test("resolves consolidated tool titles as vscode_<action>", () => {
@@ -29,4 +29,14 @@ suite("Webview tool card title", () => {
       "my_tool - sync",
     );
   });
+
+test("serializes generic tool arguments for header display", () => {
+  assert.strictEqual(
+    formatToolHeaderArguments({ query: "recent errors", limit: 10 }),
+    '{"query":"recent errors","limit":10}',
+  );
+  assert.strictEqual(formatToolHeaderArguments({}), undefined);
+  assert.strictEqual(formatToolHeaderArguments(), undefined);
+});
+
 });

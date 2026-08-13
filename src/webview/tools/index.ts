@@ -12,7 +12,12 @@ import {
 } from "../render/engine.js";
 import { highlightCode } from "../highlight.js";
 import { html, safe } from "../render/html.js";
-import { resolveToolTitle, updateToolBlockTitle } from "../render/tool-title.js";
+import {
+  formatToolHeaderArguments,
+  resolveToolTitle,
+  updateToolBlockArguments,
+  updateToolBlockTitle,
+} from "../render/tool-title.js";
 import { ToolBlock } from "../components/tool-block.js";
 import {
   DEFAULT_TOOL_COLLAPSE_LINES,
@@ -694,6 +699,8 @@ export const defaultToolRenderer = {
         toolCallId: data.toolCallId,
         entryId: data.entryId,
         filePath: typeof rawPath === "string" ? rawPath : undefined,
+        headerArguments: typeof rawPath === "string" ? undefined : formatToolHeaderArguments(data.args),
+        showPathPlaceholder: typeof rawPath === "string",
         status: "pending",
       });
       var block = tb.el as unknown as ToolEl;
@@ -970,6 +977,9 @@ export function handleToolStart(data: any) {
         }
         if (data.args) {
           updateToolBlockTitle(block, resolveToolTitle(data.toolName, data.args));
+          if (dedupRenderer === defaultToolRenderer) {
+            updateToolBlockArguments(block, data.args);
+          }
         }
       }
 

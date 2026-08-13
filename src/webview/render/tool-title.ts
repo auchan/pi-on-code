@@ -17,3 +17,24 @@ export function updateToolBlockTitle(el: HTMLElement, title: string): void {
   const nameEl = el.querySelector<HTMLElement>(".tool-name");
   if (nameEl) { nameEl.textContent = title; }
 }
+
+
+/** Serialize generic tool arguments for the compact tool header. */
+export function formatToolHeaderArguments(args?: Record<string, unknown>): string | undefined {
+  if (!args || Object.keys(args).length === 0) { return undefined; }
+  try {
+    return JSON.stringify(args);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Update a generic tool header with its full argument text. */
+export function updateToolBlockArguments(el: HTMLElement, args?: Record<string, unknown>): void {
+  const detail = formatToolHeaderArguments(args);
+  const detailEl = el.querySelector<HTMLElement>(".tool-header-arguments");
+  if (detailEl) {
+    detailEl.textContent = detail ?? "";
+    detailEl.hidden = !detail;
+  }
+}

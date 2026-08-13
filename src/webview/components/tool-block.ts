@@ -24,6 +24,10 @@ export interface ToolBlockProps {
   filePath?: string;
   status?: "pending" | "running" | "done" | "error";
   pathExtra?: string;
+  /** Non-file detail displayed alongside a generic tool name. */
+  headerArguments?: string;
+  /** Whether to show an ellipsis when no file path is supplied. */
+  showPathPlaceholder?: boolean;
 }
 
 export class ToolBlock implements Component<ToolBlockProps> {
@@ -51,12 +55,13 @@ export class ToolBlock implements Component<ToolBlockProps> {
 
     const fp = props.filePath || "";
     this._filePath = fp;
-    const pathDisplay = fp || "...";
+    const pathDisplay = fp || (props.showPathPlaceholder === false ? "" : "...");
 
     this.el.innerHTML = html`
       <div class="tool-header">
         <span class="tool-name">${props.toolName}</span>
-        <span class="tool-path" data-path="${fp}" title="Click to open file">${pathDisplay}${props.pathExtra || ""}</span>
+        <span class="tool-path" data-path="${fp}" title="Click to open file"${pathDisplay ? "" : " hidden"}>${pathDisplay}${props.pathExtra || ""}</span>
+        <span class="tool-header-arguments"${props.headerArguments ? "" : " hidden"}>${props.headerArguments || ""}</span>
         <span class="tool-status ${props.status || "pending"}">${props.status || "pending"}</span>
       </div>
       <div class="tool-content"></div>
