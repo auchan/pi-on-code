@@ -143,7 +143,9 @@ Extension Development Host.
 Releases are driven entirely by CI — there is no local publishing step.
 
 1. Merge the `chore/release-<version>` PR into `main`. It bumps
-   `package.json`, the manifest test, and `CHANGELOG.md`.
+   `package.json`, the manifest test, and `CHANGELOG.md`. Feature and fix PRs
+   should use `Closes #<issue>` or `Fixes #<issue>` so the release workflow can
+   automatically thank the Issue reporter.
 2. Tag the merge commit and push the tag:
 
    ```powershell
@@ -152,7 +154,8 @@ Releases are driven entirely by CI — there is no local publishing step.
    ```
 
 3. The `release.yml` workflow then builds the VSIX, runs the integration
-   tests, publishes to the VS Code Marketplace, and creates the GitHub
+   tests, generates release notes with acknowledgements for linked Issue
+   reporters, publishes to the VS Code Marketplace, and creates the GitHub
    release automatically.
 
 Do not run `bun scripts/publish-vsix.mjs` or `gh release create` locally for a

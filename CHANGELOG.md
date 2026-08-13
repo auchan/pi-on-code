@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.10
+
+- Render local Markdown images from `file:` URLs, absolute paths, and conversation/workspace-relative paths, including Windows backslash paths and files outside the workspace, without resetting the Webview.
+- Show generic tool arguments in tool headers and add a hover-revealed `Copy` control for complete tool calls; Bash cards copy the command and keep the control beside the exit status.
+- Automatically acknowledge linked Issue reporters in CI-generated GitHub release notes.
+
 ## 0.2.9
 
 - Bash 工具改由 Pi SDK 的默认会话构造创建，`settings.json` 中的 `shellPath` 设置现在生效，可指定自定义 shell（如安装在非默认位置的 Git Bash）。
