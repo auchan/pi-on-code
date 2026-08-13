@@ -126,7 +126,8 @@ function handleExtensionMessage(msg: any): void {
     // Skip validation for high-frequency streaming types to avoid
     // per-token overhead (every delta would parse the full union).
     var skipValidation = msg.type === "stream-delta" || msg.type === "thinking-delta" ||
-                         msg.type === "tool-update" || msg.type === "bash-output";
+                         msg.type === "tool-update" || msg.type === "bash-output" ||
+                         msg.type === "localImageResolved";
     if (!skipValidation) {
       var vr = validateExtensionToWebview(msg);
       if (!vr.success) {
@@ -146,6 +147,8 @@ function handleExtensionMessage(msg: any): void {
         eventCount: Array.isArray(msg.data?.events) ? msg.data.events.length : 0,
         hasMoreHistory: msg.data?.hasMoreHistory === true,
       });
+    } else if (msg.type === "localImageResolved") {
+      logEvent("recv:localImageResolved", { requestId: msg.data?.requestId });
     } else if (msg.type !== "stream-delta" && msg.type !== "thinking-delta" && msg.type !== "tool-update" && msg.type !== "bash-output") {
       logEvent("recv:" + msg.type, msg.data || msg);
     }
@@ -187,6 +190,9 @@ function handleExtensionMessage(msg: any): void {
       case "history-page":        handleHistoryPage(msg.data); break;
       case "conversation-turns-update":
         window.dispatchEvent(new CustomEvent(CONVERSATION_TURNS_EVENT, { detail: msg.data?.turns ?? [] }));
+        break;
+      case "localImageResolved":
+        applyResolvedLocalImage(msg.data);
         break;
 
       // New features (#1, #2, #7, #9)
@@ -362,6 +368,34 @@ export function handleTurnEnd(data: any) {
   // ═══ Message Lifecycle ═════════════════════════════════
   // ═══ Message Lifecycle ═════════════════════════════════
 
+let localImageRequestCounter = 0;
+
+function requestLocalMarkdownImages(root: ParentNode = document): void {
+    root.querySelectorAll<HTMLImageElement>('img[src]').forEach((image) => {
+      if (image.dataset.localImageRequest) { return; }
+      const src = image.getAttribute("src");
+      if (!src) { return; }
+      // Skip already-resolved or non-local sources (http, data, webview URIs).
+      if (/^(https?:|data:|blob:|vscode-webview:|vscode-resource:)/i.test(src)) { return; }
+      const requestId = `local-image-${++localImageRequestCounter}`;
+      image.dataset.localImageRequest = requestId;
+      window.__vscode.postMessage({ type: "resolveLocalImage", path: src, requestId });
+    });
+  }
+
+function applyResolvedLocalImage(data: unknown): void {
+    if (!data || typeof data !== "object") { return; }
+    const value = data as { requestId?: unknown; src?: unknown };
+    if (typeof value.requestId !== "string" || typeof value.src !== "string") { return; }
+    const { requestId, src } = value;
+    document.querySelectorAll<HTMLImageElement>("img[data-local-image-request]").forEach((image) => {
+      if (image.dataset.localImageRequest === requestId) {
+        image.src = src;
+        image.removeAttribute("data-local-image-request");
+      }
+    });
+  }
+
 function openMessageImage(src: string, alt: string): void {
     document.querySelector(".message-image-lightbox")?.remove();
 
@@ -530,6 +564,7 @@ export function handleChatMessage(data: any) {
       el.appendChild(userCopyButton);
     }
     state.chatContainer.appendChild(el);
+    requestLocalMarkdownImages(el);
     if (shouldPlaceWaitingIndicatorAfterMessage(data.role)) {
       var waitingIndicator = document.getElementById("working-indicator");
       if (waitingIndicator) {state.chatContainer.appendChild(waitingIndicator);}
@@ -1914,6 +1949,15 @@ let sbSettings = document.getElementById("pi-sb-settings");
       toggleSettingsPanel();
     });
   }
+
+  const localMarkdownImageObserver = new MutationObserver((records) => {
+    for (const record of records) {
+      record.addedNodes.forEach((node) => {
+        if (node instanceof HTMLElement) { requestLocalMarkdownImages(node); }
+      });
+    }
+  });
+  localMarkdownImageObserver.observe(state.chatContainer, { childList: true, subtree: true });
 
   // Handle external links and close overlays on outside clicks
   document.addEventListener("click", function (e) {

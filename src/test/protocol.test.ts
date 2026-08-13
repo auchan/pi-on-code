@@ -55,6 +55,21 @@ suite("Shared webview protocol", () => {
     assert.strictEqual(page.success, true);
   });
 
+  test("accepts local Markdown image resolution messages", () => {
+    const request = validateWebviewToExtension({
+      type: "resolveLocalImage",
+      path: "file:///workspace/generated/cat.png",
+      requestId: "local-image-1",
+    });
+    const response = validateExtensionToWebview({
+      type: "localImageResolved",
+      data: { requestId: "local-image-1", src: "vscode-webview://resource/cat.png" },
+    });
+
+    assert.strictEqual(request.success, true);
+    assert.strictEqual(response.success, true);
+  });
+
   test("accepts complete minimap turns and targeted history loads", () => {
     const update = validateExtensionToWebview({
       type: "conversation-turns-update",

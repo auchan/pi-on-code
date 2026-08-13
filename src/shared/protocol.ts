@@ -379,6 +379,10 @@ const ExtensionToWebviewSchema = z.discriminatedUnion("type", [
 
   // Error
   z.object({
+    type: z.literal("localImageResolved"),
+    data: z.object({ requestId: z.string().min(1), src: z.string() }),
+  }),
+  z.object({
     type: z.literal("error"),
     data: z.object({ message: z.string() }),
   }),
@@ -533,6 +537,7 @@ const WebviewToExtensionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("toggleAutoAttachActiveEditor") }),
   z.object({ type: z.literal("openUrl"), url: z.string() }),
   z.object({ type: z.literal("openFile"), path: z.string() }),
+  z.object({ type: z.literal("resolveLocalImage"), path: z.string().min(1).max(4096), requestId: z.string().min(1).max(100) }),
   z.object({ type: z.literal("promoteToSteer"), text: z.string() }),
   z.object({
     type: z.literal("replaceFollowUpQueue"),

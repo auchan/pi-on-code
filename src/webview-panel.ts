@@ -1,7 +1,12 @@
+import { Buffer } from "node:buffer";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { appendEditorContext, truncateUtf8, type PromptEditorContext } from "./editor-context.js";
 import { resolveFileLinkPath } from "./file-link.js";
+import {
+  getMarkdownImageMediaType,
+  resolveMarkdownImagePath,
+} from "./local-markdown-image.js";
 import { mergeInitialHistoryEvents } from "./history-event-sync.js";
 import { SessionCapabilitySnapshot } from "./capability-snapshot.js";
 import { piError } from "./logger.js";
@@ -107,6 +112,7 @@ export class PiWebviewPanel {
         retainContextWhenHidden: true,
         localResourceRoots: [
           vscode.Uri.joinPath(this.context.extensionUri, "media"),
+          ...(vscode.workspace.workspaceFolders?.map((folder) => folder.uri) ?? []),
         ],
       }
     );
@@ -623,6 +629,10 @@ export class PiWebviewPanel {
             void this.openFileLink(message.path);
             break;
 
+          case "resolveLocalImage":
+            void this.resolveLocalImage(message.path, message.requestId);
+            break;
+
           // Slash commands intercepted locally (not sent to LLM)
           case "slashCommand":
             void this.handleSlashCommand(message.command);
@@ -712,6 +722,32 @@ export class PiWebviewPanel {
       undefined,
       this.disposables
     );
+  }
+
+  private async resolveLocalImage(href: string, requestId: string): Promise<void> {
+    const bases = [
+      getWorkspaceCwd(),
+      ...(vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath) ?? []),
+    ];
+    const filePath = resolveMarkdownImagePath(href, bases);
+    const mediaType = filePath ? getMarkdownImageMediaType(filePath) : undefined;
+    const panel = this.panel;
+    if (!filePath || !mediaType || !panel) { return; }
+
+    try {
+      const uri = vscode.Uri.file(filePath);
+      const src = vscode.workspace.getWorkspaceFolder(uri)
+        ? panel.webview.asWebviewUri(uri).toString()
+        : `data:${mediaType};base64,${Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("base64")}`;
+      if (this.panel !== panel) { return; }
+      void panel.webview.postMessage({
+        type: "localImageResolved",
+        data: { requestId, src },
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      piError(`Could not load local image "${filePath}": ${message}`);
+    }
   }
 
   private async openFileLink(filePath: string): Promise<void> {
