@@ -49,7 +49,7 @@ export function applyAutoToolResultCollapse(el: ToolEl): void {
       header.setAttribute("aria-expanded", collapsed ? "false" : "true");
     };
     const isHeaderAction = (target: EventTarget | null): boolean =>
-      target instanceof Element && !!target.closest(".tool-path, .bash-command-copy, .tool-arguments-copy");
+      target instanceof Element && !!target.closest(".tool-path, .tool-arguments-copy");
     header.addEventListener("click", (event) => {
       if (isHeaderAction(event.target)) { return; }
       toggle();
@@ -773,27 +773,9 @@ export const bashToolRenderer = {
       block.setAttribute("data-status", "running");
       var cmd = (data.args?.command as string) || "";
       block.innerHTML = html`
-        <div class="bash-header"><span class="bash-prompt">$</span><span class="bash-command">${cmd}</span><button class="bash-command-copy" type="button" title="Copy command">Copy</button><span class="bash-status">running</span></div>
+        <div class="bash-header"><span class="bash-prompt">$</span><span class="bash-command">${cmd}</span><span class="bash-status">running</span></div>
         <div class="bash-output"></div>
         <div class="bash-footer"><span class="bash-spinner"></span> <span class="cancel-hint">running\u2026</span></div>`;
-      var copyButton = block.querySelector<HTMLButtonElement>(".bash-command-copy");
-      if (copyButton) {
-        var commandCopyButton = copyButton;
-        commandCopyButton.addEventListener("click", function (event) {
-          event.preventDefault();
-          event.stopPropagation();
-          navigator.clipboard.writeText(cmd).then(
-            function () {
-              commandCopyButton.textContent = "Copied!";
-              setTimeout(function () { commandCopyButton.textContent = "Copy"; }, 2000);
-            },
-            function () {
-              commandCopyButton.textContent = "Failed";
-              setTimeout(function () { commandCopyButton.textContent = "Copy"; }, 2000);
-            },
-          );
-        });
-      }
       state.bashBlocks[data.toolCallId] = block;
       state.bashOutputs[data.toolCallId] = "";
       return block;
