@@ -2779,6 +2779,7 @@ html.pi-viewport-recovering #pi-web-app {
 /* Tool titles preserve complete paths/commands and wrap instead of ellipsizing. */
 .tool-block .tool-header,
 .bash-execution .bash-header {
+  position: relative;
   align-items: flex-start;
   white-space: normal;
 }
@@ -2796,6 +2797,11 @@ html.pi-viewport-recovering #pi-web-app {
 
 .tool-block .tool-status,
 .bash-execution .bash-status {
+  flex: 0 0 auto;
+}
+
+.tool-header-actions {
+  position: relative;
   flex: 0 0 auto;
   margin-left: auto;
 }
@@ -2827,30 +2833,32 @@ html.pi-viewport-recovering #pi-web-app {
   white-space: normal;
 }
 
-.bash-command-copy {
-  flex: 0 0 auto;
+.tool-arguments-copy {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  right: calc(100% + 6px);
+  transform: translateY(-50%);
   opacity: 0;
   padding: 1px 5px;
   border: 1px solid var(--pi-line);
   border-radius: 2px;
-  background: transparent;
+  background: var(--pi-surface-raised);
   color: var(--pi-muted);
   cursor: pointer;
   font: inherit;
+  transition: opacity 120ms ease;
 }
 
-.bash-header:hover .bash-command-copy,
-.bash-command-copy:focus-visible {
+.tool-block:hover .tool-arguments-copy,
+.bash-execution:hover .tool-arguments-copy,
+.tool-arguments-copy:focus-visible {
   opacity: 1;
 }
 
-.bash-command-copy:hover {
+.tool-arguments-copy:hover {
   border-color: var(--pi-lavender);
   color: var(--pi-text);
-}
-
-.bash-execution.auto-tool-result-collapsed .bash-command-copy {
-  display: none;
 }
 
 .message.assistant {
@@ -2918,4 +2926,21 @@ html.pi-viewport-recovering #pi-web-app {
 .tool-block,
 .bash-execution {
   position: relative;
+}
+
+/* Generic extension tools expose their arguments in the header. */
+.tool-block .tool-header-arguments {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: var(--pi-muted);
+  font-family: var(--vscode-editor-font-family);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.tool-block.auto-tool-result-collapsed .tool-header-arguments {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

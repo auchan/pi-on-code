@@ -1,5 +1,9 @@
 import * as assert from "node:assert";
-import { resolveToolTitle } from "../webview/render/tool-title.js";
+import {
+  formatToolCallForCopy,
+  formatToolHeaderArguments,
+  resolveToolTitle,
+} from "../webview/render/tool-title.js";
 
 suite("Webview tool card title", () => {
   test("resolves consolidated tool titles as vscode_<action>", () => {
@@ -27,6 +31,31 @@ suite("Webview tool card title", () => {
     assert.strictEqual(
       resolveToolTitle("my_tool", { action: "sync" }),
       "my_tool - sync",
+    );
+  });
+
+  test("serializes generic tool arguments for header display", () => {
+    assert.strictEqual(
+      formatToolHeaderArguments({ query: "recent errors", limit: 10 }),
+      '{"query":"recent errors","limit":10}',
+    );
+    assert.strictEqual(formatToolHeaderArguments({}), undefined);
+    assert.strictEqual(formatToolHeaderArguments(), undefined);
+  });
+
+  test("serializes complete tool calls for copying", () => {
+    assert.strictEqual(
+      formatToolCallForCopy("mcp", { tool: "chrome_click", args: { uid: "1_2" } }),
+      'mcp {\n  "tool": "chrome_click",\n  "args": {\n    "uid": "1_2"\n  }\n}',
+    );
+    assert.strictEqual(formatToolCallForCopy("read", {}), "read {}");
+    assert.strictEqual(formatToolCallForCopy("read"), undefined);
+  });
+
+  test("copies only the command for bash calls", () => {
+    assert.strictEqual(
+      formatToolCallForCopy("bash", { command: "bun run build", timeout: 600 }),
+      "bun run build",
     );
   });
 });

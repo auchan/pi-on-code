@@ -12,7 +12,13 @@ import {
 } from "../render/engine.js";
 import { highlightCode } from "../highlight.js";
 import { html, safe } from "../render/html.js";
-import { resolveToolTitle, updateToolBlockTitle } from "../render/tool-title.js";
+import {
+  formatToolCallForCopy,
+  formatToolHeaderArguments,
+  resolveToolTitle,
+  updateToolBlockArguments,
+  updateToolBlockTitle,
+} from "../render/tool-title.js";
 import { ToolBlock } from "../components/tool-block.js";
 import {
   DEFAULT_TOOL_COLLAPSE_LINES,
@@ -42,11 +48,14 @@ export function applyAutoToolResultCollapse(el: ToolEl): void {
       collapsible._autoToolResultManuallyExpanded = !collapsed;
       header.setAttribute("aria-expanded", collapsed ? "false" : "true");
     };
+    const isHeaderAction = (target: EventTarget | null): boolean =>
+      target instanceof Element && !!target.closest(".tool-path, .tool-arguments-copy");
     header.addEventListener("click", (event) => {
-      if ((event.target as Element).closest(".tool-path, .bash-command-copy")) { return; }
+      if (isHeaderAction(event.target)) { return; }
       toggle();
     });
     header.addEventListener("keydown", (event) => {
+      if (isHeaderAction(event.target)) { return; }
       if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); }
     });
   }
@@ -694,6 +703,8 @@ export const defaultToolRenderer = {
         toolCallId: data.toolCallId,
         entryId: data.entryId,
         filePath: typeof rawPath === "string" ? rawPath : undefined,
+        headerArguments: typeof rawPath === "string" ? undefined : formatToolHeaderArguments(data.args),
+        showPathPlaceholder: typeof rawPath === "string",
         status: "pending",
       });
       var block = tb.el as unknown as ToolEl;
@@ -762,27 +773,9 @@ export const bashToolRenderer = {
       block.setAttribute("data-status", "running");
       var cmd = (data.args?.command as string) || "";
       block.innerHTML = html`
-        <div class="bash-header"><span class="bash-prompt">$</span><span class="bash-command">${cmd}</span><button class="bash-command-copy" type="button" title="Copy command">Copy</button><span class="bash-status">running</span></div>
+        <div class="bash-header"><span class="bash-prompt">$</span><span class="bash-command">${cmd}</span><span class="tool-header-actions"><span class="bash-status">running</span></span></div>
         <div class="bash-output"></div>
         <div class="bash-footer"><span class="bash-spinner"></span> <span class="cancel-hint">running\u2026</span></div>`;
-      var copyButton = block.querySelector<HTMLButtonElement>(".bash-command-copy");
-      if (copyButton) {
-        var commandCopyButton = copyButton;
-        commandCopyButton.addEventListener("click", function (event) {
-          event.preventDefault();
-          event.stopPropagation();
-          navigator.clipboard.writeText(cmd).then(
-            function () {
-              commandCopyButton.textContent = "Copied!";
-              setTimeout(function () { commandCopyButton.textContent = "Copy"; }, 2000);
-            },
-            function () {
-              commandCopyButton.textContent = "Failed";
-              setTimeout(function () { commandCopyButton.textContent = "Copy"; }, 2000);
-            },
-          );
-        });
-      }
       state.bashBlocks[data.toolCallId] = block;
       state.bashOutputs[data.toolCallId] = "";
       return block;
@@ -869,6 +862,33 @@ export const bashToolRenderer = {
 
   // ═══ Message Renderer Registry ════════════════════════════
   // ═══ Tool Lifecycle ════════════════════════════════════
+
+export function addToolCallCopyButton(
+  block: HTMLElement,
+  toolName: string,
+  args?: Record<string, unknown>,
+): void {
+    if (!args) { return; }
+    const copyText = formatToolCallForCopy(toolName, args);
+    const existing = block.querySelector<HTMLButtonElement>(".tool-arguments-copy");
+    if (!copyText) {
+      existing?.remove();
+      return;
+    }
+
+    const header = block.querySelector<HTMLElement>(".tool-header, .bash-header");
+    if (!header) { return; }
+    const actions = header.querySelector<HTMLElement>(".tool-header-actions") ?? header;
+    const button = existing ?? document.createElement("button");
+    button.type = "button";
+    button.className = "tool-arguments-copy";
+    button.textContent = "Copy";
+    button.title = "Copy tool call";
+    button.setAttribute("aria-label", "Copy tool call");
+    button.dataset.copyLabel = "Copy";
+    (button as HTMLButtonElement & { _copyText?: string })._copyText = copyText;
+    if (!existing) { actions.appendChild(button); }
+  }
 
 export function handleToolStart(data: any) {
     hideWelcome();
@@ -970,8 +990,12 @@ export function handleToolStart(data: any) {
         }
         if (data.args) {
           updateToolBlockTitle(block, resolveToolTitle(data.toolName, data.args));
+          if (dedupRenderer === defaultToolRenderer) {
+            updateToolBlockArguments(block, data.args);
+          }
         }
       }
+      addToolCallCopyButton(block, data.toolName, data.args);
 
       if (data.entryId && block && block.id && !block.id.startsWith("entry-")) {
         block.id = "entry-" + data.entryId;
@@ -984,6 +1008,7 @@ export function handleToolStart(data: any) {
     var renderer = getToolRenderer(data.toolName) || defaultToolRenderer;
     var block = (renderer as any).create(data);
     if (!block) { console.warn("[pi-on-code] tool renderer returned null for", data.toolName); return; }
+    addToolCallCopyButton(block, data.toolName, data.args);
     applyAutoToolResultCollapse(block);
 
     if (data.entryId && !block.id.startsWith("entry-")) {
