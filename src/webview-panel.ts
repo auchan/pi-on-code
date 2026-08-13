@@ -725,7 +725,7 @@ export class PiWebviewPanel {
     const filePath = resolveMarkdownImagePath(href, roots);
     if (!filePath) { return; }
     const uri = vscode.Uri.file(filePath);
-    if (!vscode.workspace.getWorkspaceFolder(uri)) { return; }
+    // Access control is delegated to the host sandbox (webview localResourceRoots).
     this.panel?.webview.postMessage({
       type: "localImageResolved",
       data: { requestId, src: this.panel.webview.asWebviewUri(uri).toString() },

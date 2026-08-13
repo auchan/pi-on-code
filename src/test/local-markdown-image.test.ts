@@ -39,11 +39,22 @@ suite("Local Markdown images", () => {
     );
   });
 
-  test("keeps external protocols and absolute paths unresolved", () => {
+  test("accepts absolute paths and passes security to the sandbox", () => {
+    const root = path.resolve("/workspace");
+    assert.strictEqual(
+      resolveMarkdownImagePath("C:\\Users\\me\\pic.png", [root]),
+      "C:/Users/me/pic.png",
+    );
+    assert.strictEqual(
+      resolveMarkdownImagePath("/etc/screenshots/a.png", [root]),
+      "/etc/screenshots/a.png",
+    );
+  });
+
+  test("keeps external protocols unresolved", () => {
     const root = path.resolve("/workspace");
     assert.strictEqual(resolveMarkdownImagePath("https://example.com/a.png", [root]), undefined);
     assert.strictEqual(resolveMarkdownImagePath("data:image/png;base64,AAA", [root]), undefined);
-    assert.strictEqual(resolveMarkdownImagePath("/etc/passwd", [root]), undefined);
     assert.strictEqual(resolveMarkdownImagePath("media/notes.txt", [root]), undefined);
   });
 });
