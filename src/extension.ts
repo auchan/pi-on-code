@@ -20,6 +20,7 @@ import type { WorkspaceFileItem } from "./shared/protocol.js";
 import { extractSessionId } from "./session-reference.js";
 import { shouldRevealSessionPanel } from "./session-startup.js";
 import { findReusableDraft, shouldPromoteDraft } from "./session-draft.js";
+import { normalizeSessionRename } from "./session-rename.js";
 import { isSessionResultUnread } from "./session-result-notification.js";
 import {
   clearProviderApiKeys,
@@ -475,6 +476,44 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       },
       deleteSession: async (target) => {
         await deleteSidebarSession(target);
+      },
+      renameSession: async (target, currentTitle) => {
+        const input = await vscode.window.showInputBox({
+          title: "Rename session",
+          prompt: "Enter a new session name",
+          value: currentTitle,
+          valueSelection: [0, currentTitle.length],
+        });
+        const name = normalizeSessionRename(input);
+        if (!name) { return; }
+
+        try {
+          if (target.kind === "open" && target.id) {
+            const session = sessions.find((candidate) => candidate.id === target.id);
+            if (!session) { return; }
+            session.piService.setSessionName(name);
+            session.label = name;
+            sessionTreeProvider?.refresh();
+            await saveOpenSessionPaths();
+            return;
+          }
+          if (target.kind === "past" && target.path) {
+            const past = sessionTreeProvider?.pastSessions.find((session) => session.path === target.path);
+            const tempPi = new PiService(context.secrets);
+            try {
+              const result = await tempPi.initialize({ openPath: target.path, cwd: past?.cwd ?? getWorkspaceCwd() });
+              if (!result.success) { throw new Error(result.error ?? "Could not open session"); }
+              tempPi.setSessionName(name);
+            } finally {
+              tempPi.dispose();
+            }
+            await refreshPastSessionsList();
+          }
+        } catch (error: unknown) {
+          void vscode.window.showErrorMessage(
+            `Rename failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       },
       copySessionId: async (sessionId) => {
         await vscode.env.clipboard.writeText(sessionId);

@@ -67,6 +67,7 @@ interface PiSidebarActions {
   focusSession: (sessionId: string) => void;
   resumeSession: (path: string) => void;
   deleteSession: (target: PiSidebarDeleteTarget) => void | Promise<void>;
+  renameSession: (target: PiSidebarDeleteTarget, currentTitle: string) => void | Promise<void>;
   copySessionId: (sessionId: string) => void | Promise<void>;
   forkSession: (target: PiSidebarDeleteTarget) => void | Promise<void>;
   searchPackages: (query: string) => void | Promise<void>;
@@ -125,6 +126,15 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
             this.actions.focusSession(payload.id);
           } else if (payload.kind === "past" && typeof payload.path === "string") {
             this.actions.resumeSession(payload.path);
+          }
+          break;
+        case "session-rename":
+          if (typeof payload.title === "string") {
+            if (payload.kind === "open" && typeof payload.id === "string") {
+              void this.actions.renameSession({ kind: "open", id: payload.id }, payload.title);
+            } else if (payload.kind === "past" && typeof payload.path === "string") {
+              void this.actions.renameSession({ kind: "past", path: payload.path }, payload.title);
+            }
           }
           break;
         case "session-delete":
@@ -945,6 +955,24 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
         menu.setAttribute("role", "menu");
         menu.hidden = true;
 
+        const rename = document.createElement("button");
+        rename.type = "button";
+        rename.className = "session-menu-item";
+        rename.textContent = "Rename session";
+        rename.setAttribute("role", "menuitem");
+        rename.addEventListener("click", () => {
+          vscode.postMessage({
+            type: "session-rename",
+            kind: session.kind,
+            id: session.id,
+            path: session.path,
+            title: session.title,
+          });
+          menu.hidden = true;
+          menuToggle.setAttribute("aria-expanded", "false");
+        });
+        menu.appendChild(rename);
+
         if (session.referenceId) {
           const copyId = document.createElement("button");
           copyId.type = "button";
@@ -992,14 +1020,22 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
           menuToggle.setAttribute("aria-expanded", "false");
         });
         menu.appendChild(remove);
-        menuToggle.addEventListener("click", (event) => {
-          event.stopPropagation();
+        const setMenuOpen = (openMenu) => {
           document.querySelectorAll(".session-menu").forEach((candidate) => {
             if (candidate !== menu) candidate.hidden = true;
           });
-          menu.hidden = !menu.hidden;
-          menuToggle.setAttribute("aria-expanded", String(!menu.hidden));
-          if (!menu.hidden) menu.querySelector(".session-menu-item")?.focus();
+          menu.hidden = !openMenu;
+          menuToggle.setAttribute("aria-expanded", String(openMenu));
+          if (openMenu) menu.querySelector(".session-menu-item")?.focus();
+        };
+        menuToggle.addEventListener("click", (event) => {
+          event.stopPropagation();
+          setMenuOpen(menu.hidden);
+        });
+        row.addEventListener("contextmenu", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setMenuOpen(true);
         });
         menu.addEventListener("click", (event) => event.stopPropagation());
         actions.append(menuToggle, menu);
