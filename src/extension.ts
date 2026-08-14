@@ -477,14 +477,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       deleteSession: async (target) => {
         await deleteSidebarSession(target);
       },
-      renameSession: async (target, currentTitle) => {
-        const input = await vscode.window.showInputBox({
-          title: "Rename session",
-          prompt: "Enter a new session name",
-          value: currentTitle,
-          valueSelection: [0, currentTitle.length],
-        });
-        const name = normalizeSessionRename(input);
+      renameSession: async (target, proposedTitle) => {
+        const name = normalizeSessionRename(proposedTitle);
         if (!name) { return; }
 
         try {

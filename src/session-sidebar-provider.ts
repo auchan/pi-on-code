@@ -67,7 +67,7 @@ interface PiSidebarActions {
   focusSession: (sessionId: string) => void;
   resumeSession: (path: string) => void;
   deleteSession: (target: PiSidebarDeleteTarget) => void | Promise<void>;
-  renameSession: (target: PiSidebarDeleteTarget, currentTitle: string) => void | Promise<void>;
+  renameSession: (target: PiSidebarDeleteTarget, name: string) => void | Promise<void>;
   copySessionId: (sessionId: string) => void | Promise<void>;
   forkSession: (target: PiSidebarDeleteTarget) => void | Promise<void>;
   searchPackages: (query: string) => void | Promise<void>;
@@ -491,6 +491,22 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       cursor: pointer;
     }
 
+    .session-inline-rename {
+      position: absolute;
+      z-index: 5;
+      inset-inline: 20px 32px;
+      top: 5px;
+      min-width: 0;
+      height: 24px;
+      padding: 1px 4px;
+      border: 1px solid var(--pi-lavender);
+      border-radius: 2px;
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      font: inherit;
+      font-weight: 400;
+    }
+
     .session-actions { position: relative; }
     .session-menu-toggle {
       width: 22px;
@@ -524,6 +540,7 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       background: var(--pi-panel);
       box-shadow: 0 6px 18px rgb(0 0 0 / 28%);
     }
+    .session-menu.context-positioned { position: fixed; }
     .session-menu[hidden] { display: none; }
     .session-menu-item {
       width: 100%;
@@ -955,22 +972,53 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
         menu.setAttribute("role", "menu");
         menu.hidden = true;
 
+        const startInlineRename = () => {
+          menu.hidden = true;
+          menuToggle.setAttribute("aria-expanded", "false");
+          const input = document.createElement("input");
+          input.type = "text";
+          input.className = "session-inline-rename";
+          input.value = session.title;
+          input.setAttribute("aria-label", "Rename " + session.title);
+          let settled = false;
+          const setTitleText = (value) => {
+            const textNode = Array.from(title.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
+            if (textNode) textNode.textContent = value;
+            else title.appendChild(document.createTextNode(value));
+          };
+          const finish = (save) => {
+            if (settled) return;
+            settled = true;
+            input.remove();
+            const nextTitle = input.value.replace(/\s+/g, " ").trim();
+            if (save && nextTitle && nextTitle !== session.title) {
+              vscode.postMessage({
+                type: "session-rename",
+                kind: session.kind,
+                id: session.id,
+                path: session.path,
+                title: nextTitle,
+              });
+              setTitleText(nextTitle);
+            }
+          };
+          row.appendChild(input);
+          input.addEventListener("click", (event) => event.stopPropagation());
+          input.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") { event.preventDefault(); finish(true); }
+            if (event.key === "Escape") { event.preventDefault(); finish(false); }
+          });
+          input.addEventListener("blur", () => finish(true));
+          input.focus();
+          input.select();
+        };
+
         const rename = document.createElement("button");
         rename.type = "button";
         rename.className = "session-menu-item";
         rename.textContent = "Rename session";
         rename.setAttribute("role", "menuitem");
-        rename.addEventListener("click", () => {
-          vscode.postMessage({
-            type: "session-rename",
-            kind: session.kind,
-            id: session.id,
-            path: session.path,
-            title: session.title,
-          });
-          menu.hidden = true;
-          menuToggle.setAttribute("aria-expanded", "false");
-        });
+        rename.addEventListener("click", startInlineRename);
         menu.appendChild(rename);
 
         if (session.referenceId) {
@@ -1020,12 +1068,22 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
           menuToggle.setAttribute("aria-expanded", "false");
         });
         menu.appendChild(remove);
-        const setMenuOpen = (openMenu) => {
+        const setMenuOpen = (openMenu, pointer) => {
           document.querySelectorAll(".session-menu").forEach((candidate) => {
             if (candidate !== menu) candidate.hidden = true;
           });
+          menu.classList.toggle("context-positioned", Boolean(pointer));
+          menu.style.left = "";
+          menu.style.top = "";
+          menu.style.right = "";
           menu.hidden = !openMenu;
           menuToggle.setAttribute("aria-expanded", String(openMenu));
+          if (openMenu && pointer) {
+            const left = Math.min(pointer.x, window.innerWidth - menu.offsetWidth - 4);
+            const top = Math.min(pointer.y, window.innerHeight - menu.offsetHeight - 4);
+            menu.style.left = Math.max(4, left) + "px";
+            menu.style.top = Math.max(4, top) + "px";
+          }
           if (openMenu) menu.querySelector(".session-menu-item")?.focus();
         };
         menuToggle.addEventListener("click", (event) => {
@@ -1035,7 +1093,7 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
         row.addEventListener("contextmenu", (event) => {
           event.preventDefault();
           event.stopPropagation();
-          setMenuOpen(true);
+          setMenuOpen(true, { x: event.clientX, y: event.clientY });
         });
         menu.addEventListener("click", (event) => event.stopPropagation());
         actions.append(menuToggle, menu);
