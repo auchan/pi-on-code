@@ -540,7 +540,12 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       background: var(--pi-panel);
       box-shadow: 0 6px 18px rgb(0 0 0 / 28%);
     }
-    .session-menu.context-positioned { position: fixed; }
+    .session-menu.context-positioned {
+      position: fixed;
+      right: auto;
+      width: max-content;
+      max-width: calc(100vw - 8px);
+    }
     .session-menu[hidden] { display: none; }
     .session-menu-item {
       width: 100%;
@@ -990,7 +995,7 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
             if (settled) return;
             settled = true;
             input.remove();
-            const nextTitle = input.value.replace(/\s+/g, " ").trim();
+            const nextTitle = input.value.trim();
             if (save && nextTitle && nextTitle !== session.title) {
               vscode.postMessage({
                 type: "session-rename",
