@@ -517,6 +517,13 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
     }
     .session-archive-open[hidden] { display: none; }
     .session-archive-open:hover { color: var(--pi-strong); }
+    .session-archive-open.receiving svg {
+      animation: session-archive-receive 260ms cubic-bezier(.4, 0, .2, 1);
+    }
+    @keyframes session-archive-receive {
+      0%, 100% { transform: scale(1); }
+      45% { transform: scale(.76); }
+    }
     .session-archive-open svg,
     .session-archive-back svg {
       width: 14px;
@@ -794,6 +801,7 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
         opacity: 1;
         animation: none;
       }
+      .session-archive-open.receiving svg { animation: none; }
     }
 
     .empty { padding: 7px 25px; color: var(--pi-muted); line-height: 1.7; }
@@ -1098,6 +1106,12 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       return icon;
     }
 
+    function pulseArchiveIcon() {
+      archiveOpen.classList.remove("receiving");
+      archiveOpen.getBoundingClientRect();
+      archiveOpen.classList.add("receiving");
+    }
+
     function animateSessionIntoArchive(row, session) {
       const complete = () => {
         vscode.postMessage({ type: "session-archive", key: session.key, archived: true });
@@ -1129,6 +1143,7 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
         ], { duration: 320, easing: "cubic-bezier(.4, 0, .2, 1)", fill: "forwards" });
         animation.finished.catch(() => undefined).finally(() => {
           clone.remove();
+          pulseArchiveIcon();
           complete();
         });
       });

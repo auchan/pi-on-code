@@ -38,4 +38,10 @@ suite("Session sidebar archive UI", () => {
     assert.match(source, /clone\.animate\(/);
     assert.match(source, /animateSessionIntoArchive\(row, session\)/);
   });
+
+  test("pulses the archive icon after receiving a session", () => {
+    assert.match(source, /@keyframes session-archive-receive/);
+    assert.match(source, /function pulseArchiveIcon\(\)/);
+    assert.match(source, /clone\.remove\(\);\s*pulseArchiveIcon\(\);/);
+  });
 });
