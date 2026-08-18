@@ -179,11 +179,11 @@
       },
       {
         "command": "pi-on-code.deletePastSession",
-        "title": "Pi: Delete Past Session"
+        "title": "Pi: Delete Archived Session"
       },
       {
         "command": "pi-on-code.deleteAllPastSessions",
-        "title": "Pi: Delete All Past Sessions",
+        "title": "Pi: Delete All Archived Sessions",
         "icon": "$(trash)"
       },
       {

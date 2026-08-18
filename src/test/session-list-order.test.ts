@@ -1,8 +1,12 @@
 import * as assert from "node:assert";
 import {
   emptySessionListPreferences,
+  isSessionArchived,
   moveSessionToFront,
+  normalizeSessionListPreferences,
   orderSessionItems,
+  removeSessionListPreference,
+  setSessionArchived,
   setSessionGroupOrder,
   setSessionPinned,
   type SessionListPreferences,
@@ -28,6 +32,7 @@ suite("Session list ordering", () => {
   test("keeps pinned sessions above workspace groups in persisted order", () => {
     const preferences = {
       pinned: ["pinned-b", "pinned-a"],
+      archived: [],
       orderByDirectory: {},
     };
     const ordered = orderSessionItems(
@@ -50,6 +55,7 @@ suite("Session list ordering", () => {
   test("moves newly active sessions to the front of their current group", () => {
     let preferences: SessionListPreferences = {
       pinned: ["pinned-a", "pinned-b"],
+      archived: [],
       orderByDirectory: { "/workspace/a": ["a-1", "a-2"] },
     };
     preferences = moveSessionToFront(preferences, item("a-2", 0));
@@ -61,6 +67,7 @@ suite("Session list ordering", () => {
   test("moves sessions between pinned and workspace ordering", () => {
     let preferences: SessionListPreferences = {
       pinned: [],
+      archived: [],
       orderByDirectory: { "/workspace/a": ["one", "two"] },
     };
     preferences = setSessionPinned(preferences, item("two", 0), true);
@@ -70,5 +77,40 @@ suite("Session list ordering", () => {
     preferences = setSessionPinned(preferences, item("two", 0), false);
     assert.deepStrictEqual(preferences.pinned, []);
     assert.deepStrictEqual(preferences.orderByDirectory["/workspace/a"], ["two", "one"]);
+  });
+
+  test("migrates preferences created before archive support", () => {
+    assert.deepStrictEqual(
+      normalizeSessionListPreferences({ pinned: ["one"], orderByDirectory: { "": ["one"] } }),
+      { pinned: ["one"], archived: [], orderByDirectory: { "": ["one"] } },
+    );
+  });
+
+  test("archives and restores sessions without changing their pin or order", () => {
+    const initial: SessionListPreferences = {
+      pinned: ["one"],
+      archived: [],
+      orderByDirectory: { "/workspace/a": ["two"] },
+    };
+    const archived = setSessionArchived(initial, "one", true);
+    assert.strictEqual(isSessionArchived(initial, "one"), false);
+    assert.strictEqual(isSessionArchived(archived, "one"), true);
+    assert.deepStrictEqual(archived.archived, ["one"]);
+    assert.deepStrictEqual(archived.pinned, ["one"]);
+    assert.deepStrictEqual(archived.orderByDirectory, initial.orderByDirectory);
+    assert.deepStrictEqual(setSessionArchived(archived, "one", false).archived, []);
+  });
+
+  test("removes deleted sessions from every list preference", () => {
+    const cleaned = removeSessionListPreference({
+      pinned: ["one", "two"],
+      archived: ["one"],
+      orderByDirectory: { "/workspace/a": ["one", "three"] },
+    }, "one");
+    assert.deepStrictEqual(cleaned, {
+      pinned: ["two"],
+      archived: [],
+      orderByDirectory: { "/workspace/a": ["three"] },
+    });
   });
 });

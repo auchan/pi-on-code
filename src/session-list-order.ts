@@ -7,13 +7,27 @@ export interface SessionOrderItem {
 
 export interface SessionListPreferences {
   pinned: string[];
+  archived: string[];
   orderByDirectory: Record<string, string[]>;
 }
 
 export const emptySessionListPreferences = (): SessionListPreferences => ({
   pinned: [],
+  archived: [],
   orderByDirectory: {},
 });
+
+export function normalizeSessionListPreferences(
+  value: Partial<SessionListPreferences> | undefined,
+): SessionListPreferences {
+  return {
+    pinned: Array.isArray(value?.pinned) ? value.pinned.filter((key) => typeof key === "string") : [],
+    archived: Array.isArray(value?.archived) ? value.archived.filter((key) => typeof key === "string") : [],
+    orderByDirectory: value?.orderByDirectory && typeof value.orderByDirectory === "object"
+      ? value.orderByDirectory
+      : {},
+  };
+}
 
 export function orderSessionItems<T extends SessionOrderItem>(
   items: readonly T[],
@@ -62,6 +76,7 @@ export function setSessionPinned(
   const directory = item.directory ?? "";
   const directoryOrder = (preferences.orderByDirectory[directory] ?? []).filter((key) => key !== item.key);
   return {
+    ...preferences,
     pinned: pinned ? [item.key, ...withoutPinned] : withoutPinned,
     orderByDirectory: {
       ...preferences.orderByDirectory,
@@ -80,5 +95,37 @@ export function setSessionGroupOrder(
   return {
     ...preferences,
     orderByDirectory: { ...preferences.orderByDirectory, [directory ?? ""]: [...keys] },
+  };
+}
+
+export function isSessionArchived(preferences: SessionListPreferences, key: string): boolean {
+  return preferences.archived.includes(key);
+}
+
+export function setSessionArchived(
+  preferences: SessionListPreferences,
+  key: string,
+  archived: boolean,
+): SessionListPreferences {
+  const withoutSession = preferences.archived.filter((candidate) => candidate !== key);
+  return {
+    ...preferences,
+    archived: archived ? [key, ...withoutSession] : withoutSession,
+  };
+}
+
+export function removeSessionListPreference(
+  preferences: SessionListPreferences,
+  key: string,
+): SessionListPreferences {
+  return {
+    pinned: preferences.pinned.filter((candidate) => candidate !== key),
+    archived: preferences.archived.filter((candidate) => candidate !== key),
+    orderByDirectory: Object.fromEntries(
+      Object.entries(preferences.orderByDirectory).map(([directory, keys]) => [
+        directory,
+        keys.filter((candidate) => candidate !== key),
+      ]),
+    ),
   };
 }

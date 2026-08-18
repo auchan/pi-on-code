@@ -15,6 +15,7 @@ export interface PiSidebarSession {
   key: string;
   activity: number;
   pinned: boolean;
+  archived: boolean;
 }
 
 export interface PiSidebarPackage {
@@ -68,6 +69,7 @@ interface PiSidebarActions {
   refreshSessions: () => void | Promise<void>;
   setDirectoryCollapsed: (path: string, collapsed: boolean) => void | Promise<void>;
   setSessionPinned: (key: string, pinned: boolean) => void | Promise<void>;
+  setSessionArchived: (key: string, archived: boolean) => void | Promise<void>;
   reorderSessions: (keys: string[], directory: string | undefined, pinned: boolean) => void | Promise<void>;
   focusSession: (sessionId: string) => void;
   resumeSession: (path: string) => void;
@@ -129,6 +131,11 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
         case "session-pin":
           if (typeof payload.key === "string" && typeof payload.pinned === "boolean") {
             void this.actions.setSessionPinned(payload.key, payload.pinned);
+          }
+          break;
+        case "session-archive":
+          if (typeof payload.key === "string" && typeof payload.archived === "boolean") {
+            void this.actions.setSessionArchived(payload.key, payload.archived);
           }
           break;
         case "session-reorder":
@@ -496,6 +503,65 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       font-weight: 600;
     }
     .session-pinned-group { padding-bottom: 10px; }
+    .session-archive-group {
+      margin-top: 10px;
+      padding-top: 4px;
+      border-top: 1px solid var(--pi-line);
+    }
+    .session-archive-heading {
+      display: flex;
+      width: 100%;
+      height: 30px;
+      align-items: center;
+      gap: 6px;
+      padding: 0 7px;
+      border: 0;
+      background: transparent;
+      color: var(--pi-muted);
+      font: inherit;
+      font-size: 12px;
+      text-align: left;
+      cursor: pointer;
+    }
+    .session-archive-heading:hover { color: var(--pi-strong); }
+    .session-archive-chevron { transition: transform 120ms ease; }
+    .session-archive-heading[aria-expanded="true"] .session-archive-chevron { transform: rotate(90deg); }
+    .session-archive-count { margin-left: auto; }
+    .session-archive-list[hidden] { display: none; }
+    .session-row.archived {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .session-row.archived .session-open { padding-left: 5px; }
+    .session-row.archived .session-pin { display: none; }
+    .session-archive-actions { display: flex; align-items: center; gap: 4px; }
+    .session-archive-delete,
+    .session-archive-restore {
+      height: 24px;
+      padding: 0 7px;
+      border: 0;
+      border-radius: 3px;
+      background: var(--pi-hover);
+      color: var(--pi-muted);
+      font: inherit;
+      cursor: pointer;
+    }
+    .session-archive-delete {
+      display: grid;
+      width: 24px;
+      place-items: center;
+      padding: 0;
+    }
+    .session-archive-delete svg {
+      width: 14px;
+      height: 14px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.25;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .session-archive-delete:hover { color: var(--pi-red); }
+    .session-archive-restore:hover { color: var(--pi-strong); }
     .session-pin {
       position: absolute;
       z-index: 2;
@@ -862,6 +928,7 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
     const savedUiState = vscode.getState() || {};
     const uiState = {
       packagesExpanded: savedUiState.packagesExpanded === true,
+      archivedExpanded: savedUiState.archivedExpanded === true,
       directoryExpanded: savedUiState.directoryExpanded || {},
     };
     const sessionList = document.getElementById("session-list");
@@ -938,19 +1005,20 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       return icon;
     }
 
-    function renderSessionRows(groupSessions, list, directory, pinned) {
+    function renderSessionRows(groupSessions, list, directory, pinned, archived = false) {
       for (const session of groupSessions) {
         const row = document.createElement("div");
-        row.className = "session-row" + (session.active ? " active" : "");
+        row.className = "session-row" + (session.active ? " active" : "") + (archived ? " archived" : "");
         row.dataset.sessionKey = session.key;
-        row.draggable = true;
+        row.draggable = !archived;
         row.addEventListener("dragstart", (event) => {
+          if (archived) return;
           draggedSession = { key: session.key, directory, pinned };
           row.classList.add("dragging");
           if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
         });
         row.addEventListener("dragover", (event) => {
-          if (!draggedSession || draggedSession.pinned !== pinned || (!pinned && draggedSession.directory !== directory)) return;
+          if (archived || !draggedSession || draggedSession.pinned !== pinned || (!pinned && draggedSession.directory !== directory)) return;
           event.preventDefault();
           const draggedRow = list.querySelector('.session-row[data-session-key="' + CSS.escape(draggedSession.key) + '"]');
           if (!draggedRow || draggedRow === row) return;
@@ -958,7 +1026,7 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
           list.insertBefore(draggedRow, event.clientY < bounds.top + bounds.height / 2 ? row : row.nextSibling);
         });
         row.addEventListener("drop", (event) => {
-          if (!draggedSession || draggedSession.pinned !== pinned || (!pinned && draggedSession.directory !== directory)) return;
+          if (archived || !draggedSession || draggedSession.pinned !== pinned || (!pinned && draggedSession.directory !== directory)) return;
           event.preventDefault();
           const keys = Array.from(list.querySelectorAll(".session-row")).map((candidate) => candidate.dataset.sessionKey).filter(Boolean);
           vscode.postMessage({ type: "session-reorder", keys, directory, pinned });
@@ -1008,6 +1076,37 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
 
         const actions = document.createElement("div");
         actions.className = "session-actions";
+        if (archived) {
+          actions.classList.add("session-archive-actions");
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.className = "session-archive-delete";
+          remove.title = "Delete archived session";
+          remove.setAttribute("aria-label", "Delete archived session: " + session.title);
+          remove.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 4.5h9M6 2.75h4l.5 1.75h-5L6 2.75ZM5 6.25v6m3-6v6m3-6v6M4.5 4.5l.5 9h6l.5-9"/></svg>';
+          remove.addEventListener("click", (event) => {
+            event.stopPropagation();
+            vscode.postMessage({
+              type: "session-delete",
+              kind: session.kind,
+              id: session.id,
+              path: session.path,
+            });
+          });
+          const restore = document.createElement("button");
+          restore.type = "button";
+          restore.className = "session-archive-restore";
+          restore.textContent = "Restore";
+          restore.addEventListener("click", (event) => {
+            event.stopPropagation();
+            vscode.postMessage({ type: "session-archive", key: session.key, archived: false });
+          });
+          actions.append(remove, restore);
+          row.prepend(pin, open);
+          row.append(actions);
+          list.appendChild(row);
+          continue;
+        }
         const menuToggle = document.createElement("button");
         menuToggle.type = "button";
         menuToggle.className = "session-menu-toggle";
@@ -1101,22 +1200,17 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
         });
         menu.appendChild(fork);
 
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "session-menu-item session-menu-delete";
-        remove.textContent = "Delete session";
-        remove.setAttribute("role", "menuitem");
-        remove.addEventListener("click", () => {
-          vscode.postMessage({
-            type: "session-delete",
-            kind: session.kind,
-            id: session.id,
-            path: session.path,
-          });
+        const archive = document.createElement("button");
+        archive.type = "button";
+        archive.className = "session-menu-item";
+        archive.textContent = "Archive session";
+        archive.setAttribute("role", "menuitem");
+        archive.addEventListener("click", () => {
+          vscode.postMessage({ type: "session-archive", key: session.key, archived: true });
           menu.hidden = true;
           menuToggle.setAttribute("aria-expanded", "false");
         });
-        menu.appendChild(remove);
+        menu.appendChild(archive);
         const setMenuOpen = (openMenu, pointer) => {
           document.querySelectorAll(".session-menu").forEach((candidate) => {
             if (candidate !== menu) candidate.hidden = true;
@@ -1157,8 +1251,10 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       for (const [path, collapsed] of Object.entries(collapsedDirectories || {})) {
         if (!(path in uiState.directoryExpanded)) uiState.directoryExpanded[path] = !collapsed;
       }
-      const pinnedSessions = sessions.filter((session) => session.pinned);
-      const unpinnedSessions = sessions.filter((session) => !session.pinned);
+      const archivedSessions = sessions.filter((session) => session.archived);
+      const visibleSessions = sessions.filter((session) => !session.archived);
+      const pinnedSessions = visibleSessions.filter((session) => session.pinned);
+      const unpinnedSessions = visibleSessions.filter((session) => !session.pinned);
       const multiRoot = directories.length > 1;
       if (sessions.length === 0 && !multiRoot) {
         const empty = document.createElement("div");
@@ -1215,6 +1311,36 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
           sessionList.appendChild(list);
         }
         renderSessionRows(group.sessions, list, group.path, false);
+      }
+
+      if (archivedSessions.length > 0) {
+        const archiveGroup = document.createElement("div");
+        archiveGroup.className = "session-archive-group";
+        const heading = document.createElement("button");
+        heading.type = "button";
+        heading.className = "session-archive-heading";
+        heading.setAttribute("aria-expanded", String(uiState.archivedExpanded));
+        const chevron = document.createElement("span");
+        chevron.className = "session-archive-chevron";
+        chevron.textContent = "›";
+        const label = document.createElement("span");
+        label.textContent = "Archived";
+        const count = document.createElement("span");
+        count.className = "session-archive-count";
+        count.textContent = String(archivedSessions.length);
+        const list = document.createElement("div");
+        list.className = "session-archive-list";
+        list.hidden = !uiState.archivedExpanded;
+        heading.append(chevron, label, count);
+        heading.addEventListener("click", () => {
+          uiState.archivedExpanded = !uiState.archivedExpanded;
+          heading.setAttribute("aria-expanded", String(uiState.archivedExpanded));
+          list.hidden = !uiState.archivedExpanded;
+          vscode.setState(uiState);
+        });
+        archiveGroup.append(heading, list);
+        sessionList.appendChild(archiveGroup);
+        renderSessionRows(archivedSessions, list, undefined, false, true);
       }
     }
 
