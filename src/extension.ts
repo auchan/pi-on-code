@@ -23,8 +23,12 @@ import { findReusableDraft, shouldPromoteDraft } from "./session-draft.js";
 import { normalizeSessionRename } from "./session-rename.js";
 import {
   emptySessionListPreferences,
+  isSessionArchived,
   moveSessionToFront,
+  normalizeSessionListPreferences,
   orderSessionItems,
+  removeSessionListPreference,
+  setSessionArchived as updateSessionArchived,
   setSessionGroupOrder,
   setSessionPinned,
   type SessionListPreferences,
@@ -209,8 +213,10 @@ function getSessionReferenceItems(current: PiService): WorkspaceFileItem[] {
 }
 
 function getSessionListPreferences(): SessionListPreferences {
-  return extContext?.workspaceState.get<SessionListPreferences>(sessionListPreferencesKey)
-    ?? emptySessionListPreferences();
+  return normalizeSessionListPreferences(
+    extContext?.workspaceState.get<Partial<SessionListPreferences>>(sessionListPreferencesKey)
+      ?? emptySessionListPreferences(),
+  );
 }
 
 async function saveSessionListPreferences(preferences: SessionListPreferences): Promise<void> {
@@ -260,6 +266,7 @@ function getSidebarState(): PiSidebarState {
       key: sessionPath ?? sw.id,
       activity: getFileModifiedTime(sessionPath) ?? 0,
       pinned: preferences.pinned.includes(sessionPath ?? sw.id),
+      archived: isSessionArchived(preferences, sessionPath ?? sw.id),
     });
   }
 
@@ -285,6 +292,7 @@ function getSidebarState(): PiSidebarState {
       key: session.path,
       activity: session.modified ?? session.created ?? 0,
       pinned: preferences.pinned.includes(session.path),
+      archived: isSessionArchived(preferences, session.path),
     });
   }
 
@@ -354,6 +362,14 @@ async function deleteSidebarSession(target: PiSidebarDeleteTarget): Promise<void
     return;
   }
 
+  const sessionKey = openSession
+    ? (getSessionPath(openSession) ?? openSession.id)
+    : pastSession?.path;
+  if (!sessionKey || !isSessionArchived(getSessionListPreferences(), sessionKey)) {
+    void vscode.window.showWarningMessage("Archive the session before deleting it.");
+    return;
+  }
+
   const title = openSession
     ? cleanSessionTitle(openSession.piService.sessionName ?? openSession.webviewPanel.summary ?? openSession.label)
     : cleanSessionTitle(pastSession?.name ?? pastSession?.firstMessage ?? "Untitled session");
@@ -391,6 +407,9 @@ async function deleteSidebarSession(target: PiSidebarDeleteTarget): Promise<void
       await deleteSessionFileIfPresent(pastSession?.path);
       await refreshPastSessionsList();
     }
+    await saveSessionListPreferences(
+      removeSessionListPreference(getSessionListPreferences(), sessionKey),
+    );
     sessionTreeProvider?.refresh();
   } catch (error: unknown) {
     vscode.window.showErrorMessage(
@@ -512,12 +531,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       },
       setSessionPinned: async (key, pinned) => {
         const session = findSidebarSession(key);
-        if (!session) { return; }
+        if (!session || session.archived) { return; }
         await saveSessionListPreferences(setSessionPinned(getSessionListPreferences(), session, pinned));
+      },
+      setSessionArchived: async (key, archived) => {
+        if (!findSidebarSession(key)) { return; }
+        await saveSessionListPreferences(updateSessionArchived(getSessionListPreferences(), key, archived));
       },
       reorderSessions: async (keys, directory, pinned) => {
         const group = getSidebarState().sessions.filter((session) =>
-          session.pinned === pinned && (pinned || session.directory === directory),
+          !session.archived && session.pinned === pinned && (pinned || session.directory === directory),
         );
         const expected = new Set(group.map((session) => session.key));
         if (keys.length !== expected.size || keys.some((key) => !expected.has(key))) { return; }
@@ -1076,6 +1099,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.window.showErrorMessage("Cannot delete: missing session file path.");
         return;
       }
+      if (!isSessionArchived(getSessionListPreferences(), resolved)) {
+        vscode.window.showWarningMessage("Archive the session before deleting it.");
+        return;
+      }
       const confirm = await vscode.window.showWarningMessage(
         "Delete this session permanently?",
         { modal: true },
@@ -1084,6 +1111,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (confirm !== "Delete") { return; }
       try {
         await deleteSessionFileIfPresent(resolved);
+        await saveSessionListPreferences(
+          removeSessionListPreference(getSessionListPreferences(), resolved),
+        );
         await refreshPastSessionsList();
         sessionTreeProvider?.refreshPastOnly();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1096,21 +1126,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // ── Delete all past sessions ────────────────────────
   context.subscriptions.push(
     vscode.commands.registerCommand("pi-on-code.deleteAllPastSessions", async () => {
-      const past = sessionTreeProvider?.pastSessions ?? [];
+      const archived = new Set(getSessionListPreferences().archived);
+      const past = (sessionTreeProvider?.pastSessions ?? []).filter((session) => archived.has(session.path));
       if (past.length === 0) {
-        vscode.window.showInformationMessage("No past sessions to delete.");
+        vscode.window.showInformationMessage("No archived past sessions to delete.");
         return;
       }
       const confirm = await vscode.window.showWarningMessage(
-        `Delete all ${past.length} past sessions permanently?`,
+        `Delete all ${past.length} archived sessions permanently?`,
         { modal: true },
         "Delete All",
       );
       if (confirm !== "Delete All") { return; }
       try {
+        let preferences = getSessionListPreferences();
         for (const s of past) {
           await deleteSessionFileIfPresent(s.path);
+          preferences = removeSessionListPreference(preferences, s.path);
         }
+        await saveSessionListPreferences(preferences);
         await refreshPastSessionsList();
         sessionTreeProvider?.refresh();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
