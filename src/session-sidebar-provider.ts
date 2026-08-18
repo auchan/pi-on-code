@@ -501,9 +501,11 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       z-index: 2;
       left: 3px;
       top: 50%;
+      display: grid;
+      place-items: center;
       width: 20px;
       height: 24px;
-      padding: 3px;
+      padding: 0;
       border: 0;
       transform: translateY(-50%);
       background: transparent;
@@ -512,7 +514,7 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       pointer-events: none;
       cursor: pointer;
     }
-    .session-pin svg { width: 14px; height: 14px; fill: currentColor; }
+    .session-pin svg { display: block; width: 14px; height: 14px; fill: currentColor; }
     .session-row:hover .session-pin,
     .session-row:focus-within .session-pin,
     .session-pin.pinned { opacity: 1; pointer-events: auto; }
