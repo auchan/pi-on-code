@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.11
+
+- Rename Sessions inline from their action or context menu, preserving the full current title while editing.
+- Pin Sessions above workspace groups and drag them into a persistent per-workspace order that still prioritizes newly active Sessions.
+- Archive Sessions without moving their JSONL files, browse them in a dedicated directory-grouped view with exact timestamps, and restore or permanently delete them with guarded actions and responsive archive animations.
+- Reduce the conversation minimap's reserved gutter so the transcript uses more of the available width.
+
 ## 0.2.10
 
 - Render local Markdown images from `file:` URLs, absolute paths, and conversation/workspace-relative paths, including Windows backslash paths and files outside the workspace, without resetting the Webview.
