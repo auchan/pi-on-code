@@ -500,10 +500,12 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       position: absolute;
       z-index: 2;
       left: 3px;
+      top: 50%;
       width: 20px;
       height: 24px;
       padding: 3px;
       border: 0;
+      transform: translateY(-50%);
       background: transparent;
       color: var(--pi-muted);
       opacity: 0;
