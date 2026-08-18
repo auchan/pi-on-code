@@ -2726,7 +2726,26 @@ html.pi-viewport-recovering #pi-web-app {
   }
 
   #chat-container {
-    padding: 24px 14px 40px;
+    padding: 24px 18px 40px;
+  }
+
+  .conversation-minimap {
+    left: 0;
+    width: 14px;
+  }
+
+  .conversation-minimap-tick {
+    width: 14px;
+  }
+
+  .conversation-minimap-tick::before {
+    left: 2px;
+    width: min(var(--conversation-minimap-tick-width, 7px), 10px);
+  }
+
+  .conversation-minimap-tooltip {
+    left: 18px;
+    width: min(340px, calc(100vw - 36px));
   }
 
   .message.user {
