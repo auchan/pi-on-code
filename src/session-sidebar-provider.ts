@@ -503,31 +503,74 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       font-weight: 600;
     }
     .session-pinned-group { padding-bottom: 10px; }
-    .session-archive-group {
-      margin-top: 10px;
-      padding-top: 4px;
-      border-top: 1px solid var(--pi-line);
-    }
-    .session-archive-heading {
-      display: flex;
-      width: 100%;
-      height: 30px;
-      align-items: center;
-      gap: 6px;
-      padding: 0 7px;
+    .session-archive-open {
+      display: grid;
+      width: 24px;
+      height: 24px;
+      margin-left: auto;
+      padding: 0;
       border: 0;
+      place-items: center;
       background: transparent;
       color: var(--pi-muted);
-      font: inherit;
-      font-size: 12px;
-      text-align: left;
       cursor: pointer;
     }
-    .session-archive-heading:hover { color: var(--pi-strong); }
-    .session-archive-chevron { transition: transform 120ms ease; }
-    .session-archive-heading[aria-expanded="true"] .session-archive-chevron { transform: rotate(90deg); }
-    .session-archive-count { margin-left: auto; }
-    .session-archive-list[hidden] { display: none; }
+    .session-archive-open[hidden] { display: none; }
+    .session-archive-open:hover { color: var(--pi-strong); }
+    .session-archive-open svg,
+    .session-archive-back svg {
+      width: 14px;
+      height: 14px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.25;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .session-archive-view {
+      position: fixed;
+      z-index: 50;
+      inset: 0;
+      overflow-y: auto;
+      background: var(--pi-bg);
+    }
+    .session-archive-view[hidden] { display: none; }
+    .session-archive-view-header {
+      position: sticky;
+      z-index: 1;
+      top: 0;
+      display: flex;
+      height: 40px;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      border-bottom: 1px solid var(--pi-border);
+      background: var(--pi-brand-bg);
+      color: var(--pi-strong);
+      font-weight: 700;
+    }
+    .session-archive-back {
+      display: grid;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: 0;
+      place-items: center;
+      background: transparent;
+      color: var(--pi-muted);
+      cursor: pointer;
+    }
+    .session-archive-back:hover { color: var(--pi-strong); }
+    .session-archive-view-list { padding: 8px 7px 12px; }
+    .session-archive-fly {
+      position: fixed !important;
+      z-index: 100;
+      margin: 0 !important;
+      pointer-events: none;
+      overflow: hidden;
+      background: var(--pi-hover) !important;
+      transform-origin: center;
+    }
     .session-row.archived {
       grid-template-columns: minmax(0, 1fr) auto;
     }
@@ -901,7 +944,12 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       <button class="new-session" id="session-action" type="button" title="New Pi session" aria-label="New Pi session">+ new</button>
     </header>
     <section aria-labelledby="sessions-heading">
-      <div class="section-title" id="sessions-heading">sessions</div>
+      <div class="section-title" id="sessions-heading">
+        <span>sessions</span>
+        <button class="session-archive-open" id="session-archive-open" type="button" title="Archived sessions" aria-label="Open archived sessions" hidden>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h11v8.25h-11V4.5ZM2 2.5h12v2H2v-2ZM6 7h4"/></svg>
+        </button>
+      </div>
       <div class="session-list" id="session-list"></div>
     </section>
     <section class="packages-section" id="packages-section" aria-labelledby="packages-heading">
@@ -922,16 +970,28 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
         <button class="package-gallery-link" id="package-gallery-link" type="button">browse pi.dev/packages ↗</button>
       </div>
     </section>
+    <section class="session-archive-view" id="session-archive-view" aria-labelledby="session-archive-title" hidden>
+      <header class="session-archive-view-header">
+        <button class="session-archive-back" id="session-archive-back" type="button" title="Back to sessions" aria-label="Back to sessions">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 3 5.5 8l5 5"/></svg>
+        </button>
+        <span id="session-archive-title">Archived sessions</span>
+      </header>
+      <div class="session-archive-view-list" id="session-archive-list"></div>
+    </section>
   </main>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
     const savedUiState = vscode.getState() || {};
     const uiState = {
       packagesExpanded: savedUiState.packagesExpanded === true,
-      archivedExpanded: savedUiState.archivedExpanded === true,
       directoryExpanded: savedUiState.directoryExpanded || {},
     };
     const sessionList = document.getElementById("session-list");
+    const archiveOpen = document.getElementById("session-archive-open");
+    const archiveView = document.getElementById("session-archive-view");
+    const archiveBack = document.getElementById("session-archive-back");
+    const archiveList = document.getElementById("session-archive-list");
     const packagesSection = document.getElementById("packages-section");
     const packagesToggle = document.getElementById("packages-toggle");
     const packagesCount = document.getElementById("packages-count");
@@ -941,6 +1001,15 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
     let currentState = null;
     let draggedSession = null;
     let marketplaceRequested = false;
+
+    function setArchiveViewOpen(open) {
+      archiveView.hidden = !open;
+      if (open) archiveBack.focus();
+      else archiveOpen.focus();
+    }
+
+    archiveOpen.addEventListener("click", () => setArchiveViewOpen(true));
+    archiveBack.addEventListener("click", () => setArchiveViewOpen(false));
 
     function syncPackagesExpanded() {
       packagesSection.classList.toggle("expanded", uiState.packagesExpanded);
@@ -1003,6 +1072,42 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       open.append(openBack, openFront);
       icon.append(closed, open);
       return icon;
+    }
+
+    function animateSessionIntoArchive(row, session) {
+      const complete = () => {
+        vscode.postMessage({ type: "session-archive", key: session.key, archived: true });
+      };
+      archiveOpen.hidden = false;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || typeof row.animate !== "function") {
+        complete();
+        return;
+      }
+      requestAnimationFrame(() => {
+        const source = row.getBoundingClientRect();
+        const target = archiveOpen.getBoundingClientRect();
+        if (!source.width || !source.height || !target.width || !target.height) {
+          complete();
+          return;
+        }
+        const clone = row.cloneNode(true);
+        clone.classList.add("session-archive-fly");
+        clone.style.left = source.left + "px";
+        clone.style.top = source.top + "px";
+        clone.style.width = source.width + "px";
+        clone.style.height = source.height + "px";
+        document.body.appendChild(clone);
+        const x = target.left + target.width / 2 - (source.left + source.width / 2);
+        const y = target.top + target.height / 2 - (source.top + source.height / 2);
+        const animation = clone.animate([
+          { transform: "translate(0, 0) scale(1)", opacity: 1 },
+          { transform: "translate(" + x + "px, " + y + "px) scale(.12)", opacity: .12 },
+        ], { duration: 320, easing: "cubic-bezier(.4, 0, .2, 1)", fill: "forwards" });
+        animation.finished.catch(() => undefined).finally(() => {
+          clone.remove();
+          complete();
+        });
+      });
     }
 
     function renderSessionRows(groupSessions, list, directory, pinned, archived = false) {
@@ -1206,9 +1311,9 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
         archive.textContent = "Archive session";
         archive.setAttribute("role", "menuitem");
         archive.addEventListener("click", () => {
-          vscode.postMessage({ type: "session-archive", key: session.key, archived: true });
           menu.hidden = true;
           menuToggle.setAttribute("aria-expanded", "false");
+          animateSessionIntoArchive(row, session);
         });
         menu.appendChild(archive);
         const setMenuOpen = (openMenu, pointer) => {
@@ -1251,7 +1356,6 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       for (const [path, collapsed] of Object.entries(collapsedDirectories || {})) {
         if (!(path in uiState.directoryExpanded)) uiState.directoryExpanded[path] = !collapsed;
       }
-      const archivedSessions = sessions.filter((session) => session.archived);
       const visibleSessions = sessions.filter((session) => !session.archived);
       const pinnedSessions = visibleSessions.filter((session) => session.pinned);
       const unpinnedSessions = visibleSessions.filter((session) => !session.pinned);
@@ -1312,36 +1416,20 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
         }
         renderSessionRows(group.sessions, list, group.path, false);
       }
+    }
 
-      if (archivedSessions.length > 0) {
-        const archiveGroup = document.createElement("div");
-        archiveGroup.className = "session-archive-group";
-        const heading = document.createElement("button");
-        heading.type = "button";
-        heading.className = "session-archive-heading";
-        heading.setAttribute("aria-expanded", String(uiState.archivedExpanded));
-        const chevron = document.createElement("span");
-        chevron.className = "session-archive-chevron";
-        chevron.textContent = "›";
-        const label = document.createElement("span");
-        label.textContent = "Archived";
-        const count = document.createElement("span");
-        count.className = "session-archive-count";
-        count.textContent = String(archivedSessions.length);
-        const list = document.createElement("div");
-        list.className = "session-archive-list";
-        list.hidden = !uiState.archivedExpanded;
-        heading.append(chevron, label, count);
-        heading.addEventListener("click", () => {
-          uiState.archivedExpanded = !uiState.archivedExpanded;
-          heading.setAttribute("aria-expanded", String(uiState.archivedExpanded));
-          list.hidden = !uiState.archivedExpanded;
-          vscode.setState(uiState);
-        });
-        archiveGroup.append(heading, list);
-        sessionList.appendChild(archiveGroup);
-        renderSessionRows(archivedSessions, list, undefined, false, true);
+    function renderArchivedSessions(sessions) {
+      const archivedSessions = sessions.filter((session) => session.archived);
+      archiveOpen.hidden = archivedSessions.length === 0;
+      archiveList.replaceChildren();
+      if (archivedSessions.length === 0) {
+        if (!archiveView.hidden) {
+          archiveView.hidden = true;
+          sessionAction.focus();
+        }
+        return;
       }
+      renderSessionRows(archivedSessions, archiveList, undefined, false, true);
     }
 
     function formatDownloads(value) {
@@ -1528,7 +1616,9 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       sessionAction.textContent = multiRoot ? "↻" : "+ new";
       sessionAction.title = multiRoot ? "Refresh sessions" : "New Pi session";
       sessionAction.setAttribute("aria-label", sessionAction.title);
-      renderSessions(Array.isArray(state?.sessions) ? state.sessions : [], Array.isArray(state?.directories) ? state.directories : [], state?.collapsedDirectories || {});
+      const sessions = Array.isArray(state?.sessions) ? state.sessions : [];
+      renderSessions(sessions, Array.isArray(state?.directories) ? state.directories : [], state?.collapsedDirectories || {});
+      renderArchivedSessions(sessions);
       renderPackages(state?.packages || {});
     }
 
@@ -1536,7 +1626,9 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       if (event.data?.type === "state") render(event.data.state);
     });
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") document.querySelector(".preview-overlay")?.remove();
+      if (event.key !== "Escape") return;
+      document.querySelector(".preview-overlay")?.remove();
+      if (!archiveView.hidden) setArchiveViewOpen(false);
     });
     syncPackagesExpanded();
     vscode.postMessage({ type: "ready" });
