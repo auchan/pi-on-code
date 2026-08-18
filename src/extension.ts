@@ -21,6 +21,14 @@ import { extractSessionId } from "./session-reference.js";
 import { shouldRevealSessionPanel } from "./session-startup.js";
 import { findReusableDraft, shouldPromoteDraft } from "./session-draft.js";
 import { normalizeSessionRename } from "./session-rename.js";
+import {
+  emptySessionListPreferences,
+  moveSessionToFront,
+  orderSessionItems,
+  setSessionGroupOrder,
+  setSessionPinned,
+  type SessionListPreferences,
+} from "./session-list-order.js";
 import { isSessionResultUnread } from "./session-result-notification.js";
 import {
   clearProviderApiKeys,
@@ -58,6 +66,7 @@ let sessionCounter = 0;
 let extContext: vscode.ExtensionContext | null = null;
 const unreadSessionPaths = new Set<string>();
 const unreadSessionPathsKey = "pi-on-code.unreadSessionResultPaths";
+const sessionListPreferencesKey = "pi-on-code.sessionListPreferences";
 /** Prevent panel-dispose callbacks from overwriting saved state during shutdown. */
 let isDeactivating = false;
 
@@ -199,9 +208,36 @@ function getSessionReferenceItems(current: PiService): WorkspaceFileItem[] {
   return items;
 }
 
+function getSessionListPreferences(): SessionListPreferences {
+  return extContext?.workspaceState.get<SessionListPreferences>(sessionListPreferencesKey)
+    ?? emptySessionListPreferences();
+}
+
+async function saveSessionListPreferences(preferences: SessionListPreferences): Promise<void> {
+  await extContext?.workspaceState.update(sessionListPreferencesKey, preferences);
+  sessionSidebarProvider?.refresh();
+}
+
+function findSidebarSession(key: string): PiSidebarSession | undefined {
+  return getSidebarState().sessions.find((session) => session.key === key);
+}
+
+function markSessionActivity(sw: SessionWindow): void {
+  const sessionPath = getSessionPath(sw);
+  const key = sessionPath ?? sw.id;
+  const preferences = getSessionListPreferences();
+  const item = {
+    key,
+    directory: sw.cwd,
+    pinned: preferences.pinned.includes(key),
+  };
+  void saveSessionListPreferences(moveSessionToFront(preferences, item));
+}
+
 function getSidebarState(): PiSidebarState {
   const items: PiSidebarSession[] = [];
   const openPaths = new Set<string>();
+  const preferences = getSessionListPreferences();
 
   for (const sw of sessions) {
     if (sw.draft) { continue; }
@@ -221,6 +257,9 @@ function getSidebarState(): PiSidebarState {
       path: sessionPath,
       referenceId: sw.piService.sessionIdValue ?? readSessionId(sessionPath),
       directory: sw.cwd,
+      key: sessionPath ?? sw.id,
+      activity: getFileModifiedTime(sessionPath) ?? 0,
+      pinned: preferences.pinned.includes(sessionPath ?? sw.id),
     });
   }
 
@@ -243,11 +282,14 @@ function getSidebarState(): PiSidebarState {
       path: session.path,
       referenceId: readSessionId(session.path),
       directory: session.cwd,
+      key: session.path,
+      activity: session.modified ?? session.created ?? 0,
+      pinned: preferences.pinned.includes(session.path),
     });
   }
 
   return {
-    sessions: items,
+    sessions: orderSessionItems(items, preferences),
     directories: getWorkspaceFolders(),
     collapsedDirectories: extContext?.workspaceState.get<Record<string, boolean>>("pi-on-code.collapsedSessionDirectories") ?? {},
     packages: packagesTreeProvider?.getWebState() ?? {
@@ -467,6 +509,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const states = context.workspaceState.get<Record<string, boolean>>("pi-on-code.collapsedSessionDirectories") ?? {};
         states[path] = collapsed;
         await context.workspaceState.update("pi-on-code.collapsedSessionDirectories", states);
+      },
+      setSessionPinned: async (key, pinned) => {
+        const session = findSidebarSession(key);
+        if (!session) { return; }
+        await saveSessionListPreferences(setSessionPinned(getSessionListPreferences(), session, pinned));
+      },
+      reorderSessions: async (keys, directory, pinned) => {
+        const group = getSidebarState().sessions.filter((session) =>
+          session.pinned === pinned && (pinned || session.directory === directory),
+        );
+        const expected = new Set(group.map((session) => session.key));
+        if (keys.length !== expected.size || keys.some((key) => !expected.has(key))) { return; }
+        await saveSessionListPreferences(setSessionGroupOrder(getSessionListPreferences(), keys, directory, pinned));
       },
       focusSession: (sessionId) => {
         void vscode.commands.executeCommand("pi-on-code.focusSession", sessionId);
@@ -1781,7 +1836,10 @@ async function initSessionInBackground(context: vscode.ExtensionContext, sw: Ses
       event.type === "compaction-summary-message"
     ) {
       changed = true; // entry count / usage stats changed
-      if (event.type === "chat-message") { void saveOpenSessionPaths(); }
+      if (event.type === "chat-message") {
+        void saveOpenSessionPaths();
+        if (event.data.role === "user") { markSessionActivity(sw); }
+      }
     }
 
     if (changed) { sessionTreeProvider?.refresh(); }
