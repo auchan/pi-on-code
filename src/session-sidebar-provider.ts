@@ -572,9 +572,33 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       transform-origin: center;
     }
     .session-row.archived {
+      height: 50px;
       grid-template-columns: minmax(0, 1fr) auto;
     }
-    .session-row.archived .session-open { padding-left: 5px; }
+    .session-row.archived .session-open {
+      grid-template-columns: 13px minmax(0, 1fr);
+      grid-template-rows: auto auto;
+      align-content: center;
+      padding-left: 5px;
+    }
+    .session-row.archived .chevron {
+      grid-column: 1;
+      grid-row: 1 / 3;
+    }
+    .session-row.archived .title {
+      grid-column: 2;
+      grid-row: 1;
+      align-self: end;
+    }
+    .session-row.archived .meta {
+      min-width: 0;
+      grid-column: 2;
+      grid-row: 2;
+      align-self: start;
+      margin-top: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .session-row.archived .session-pin { display: none; }
     .session-archive-actions { display: flex; align-items: center; gap: 4px; }
     .session-archive-delete,
@@ -1110,6 +1134,18 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       });
     }
 
+    function formatSessionTimestamp(timestamp) {
+      if (!Number.isFinite(timestamp) || timestamp <= 0) return "";
+      const timeMs = timestamp < 1000000000000 ? timestamp * 1000 : timestamp;
+      return new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(timeMs));
+    }
+
     function renderSessionRows(groupSessions, list, directory, pinned, archived = false) {
       for (const session of groupSessions) {
         const row = document.createElement("div");
@@ -1161,7 +1197,7 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
         title.appendChild(document.createTextNode(session.title));
         const meta = document.createElement("span");
         meta.className = "meta";
-        meta.textContent = session.meta || "";
+        meta.textContent = archived ? formatSessionTimestamp(session.activity) : (session.meta || "");
         open.append(chevron, title, meta);
         open.addEventListener("click", () => {
           vscode.postMessage({ type: "open", kind: session.kind, id: session.id, path: session.path });
@@ -1418,7 +1454,13 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       }
     }
 
-    function renderArchivedSessions(sessions) {
+    function sessionDirectoryName(directory) {
+      if (!directory) return "Other sessions";
+      const parts = directory.split(String.fromCharCode(92)).join("/").split("/").filter(Boolean);
+      return parts[parts.length - 1] || directory;
+    }
+
+    function renderArchivedSessions(sessions, directories) {
       const archivedSessions = sessions.filter((session) => session.archived);
       archiveOpen.hidden = archivedSessions.length === 0;
       archiveList.replaceChildren();
@@ -1429,7 +1471,41 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
         }
         return;
       }
-      renderSessionRows(archivedSessions, archiveList, undefined, false, true);
+      if (directories.length <= 1) {
+        renderSessionRows(archivedSessions, archiveList, undefined, false, true);
+        return;
+      }
+
+      const groups = [];
+      const groupedDirectories = new Set();
+      for (const directory of directories) {
+        const groupSessions = archivedSessions.filter((session) => session.directory === directory.path);
+        if (groupSessions.length === 0) continue;
+        groups.push({ name: directory.name, path: directory.path, sessions: groupSessions });
+        groupedDirectories.add(directory.path);
+      }
+      for (const session of archivedSessions) {
+        if (session.directory && groupedDirectories.has(session.directory)) continue;
+        const existing = groups.find((group) => group.path === session.directory);
+        if (existing) existing.sessions.push(session);
+        else groups.push({
+          name: sessionDirectoryName(session.directory),
+          path: session.directory,
+          sessions: [session],
+        });
+      }
+
+      for (const group of groups) {
+        const directoryElement = document.createElement("div");
+        directoryElement.className = "session-directory";
+        const heading = document.createElement("div");
+        heading.className = "session-directory-heading";
+        heading.append(createDirectoryIcon(), document.createTextNode(group.name));
+        const list = document.createElement("div");
+        directoryElement.append(heading, list);
+        archiveList.appendChild(directoryElement);
+        renderSessionRows(group.sessions, list, group.path, false, true);
+      }
     }
 
     function formatDownloads(value) {
@@ -1617,8 +1693,9 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       sessionAction.title = multiRoot ? "Refresh sessions" : "New Pi session";
       sessionAction.setAttribute("aria-label", sessionAction.title);
       const sessions = Array.isArray(state?.sessions) ? state.sessions : [];
-      renderSessions(sessions, Array.isArray(state?.directories) ? state.directories : [], state?.collapsedDirectories || {});
-      renderArchivedSessions(sessions);
+      const directories = Array.isArray(state?.directories) ? state.directories : [];
+      renderSessions(sessions, directories, state?.collapsedDirectories || {});
+      renderArchivedSessions(sessions, directories);
       renderPackages(state?.packages || {});
     }
 

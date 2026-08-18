@@ -20,6 +20,19 @@ suite("Session sidebar archive UI", () => {
     assert.doesNotMatch(source, /session-archive-count/);
   });
 
+  test("groups archived sessions by directory in multi-root workspaces", () => {
+    assert.match(source, /function renderArchivedSessions\(sessions, directories\)/);
+    assert.match(source, /if \(directories\.length <= 1\)/);
+    assert.match(source, /function sessionDirectoryName\(directory\)/);
+    assert.match(source, /heading\.append\(createDirectoryIcon\(\), document\.createTextNode\(group\.name\)\)/);
+  });
+
+  test("shows an exact timestamp beneath archived session titles", () => {
+    assert.match(source, /function formatSessionTimestamp\(timestamp\)/);
+    assert.match(source, /archived \? formatSessionTimestamp\(session\.activity\)/);
+    assert.match(source, /\.session-row\.archived \.meta/);
+  });
+
   test("animates archived rows toward the archive action", () => {
     assert.match(source, /function animateSessionIntoArchive\(/);
     assert.match(source, /clone\.animate\(/);
