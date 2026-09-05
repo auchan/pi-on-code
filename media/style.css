@@ -2092,7 +2092,7 @@ html.pi-viewport-recovering #pi-web-app {
   width: 100%;
   max-width: none;
   align-self: stretch;
-  padding: 14px 0;
+  padding: 8px 0;
   border-top: 1px solid var(--pi-line-soft);
   animation: pi-message-in 120ms ease-out;
 }
@@ -2970,7 +2970,7 @@ html.pi-viewport-recovering #pi-web-app {
 }
 
 .execution-process-summary {
-  padding: 2px 0;
+  padding: 0 0 2px;
   color: var(--pi-faint);
   cursor: pointer;
   font-size: 11px;
@@ -3011,8 +3011,10 @@ html.pi-viewport-recovering #pi-web-app {
 
 .execution-process-content > :first-child {
   margin-top: 0;
+  border-top: 0;
 }
 
 .execution-process-content > :last-child {
   margin-bottom: 0;
+  border-bottom: 0;
 }
