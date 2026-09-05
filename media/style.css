@@ -2106,9 +2106,13 @@ html.pi-viewport-recovering #pi-web-app {
 .message.user {
   min-width: 0;
   align-self: stretch;
-  margin: 0;
-  padding-left: 12px;
-  border-left: 1px solid var(--pi-lavender);
+  margin: 4px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--pi-line);
+  border-left: 3px solid var(--pi-lavender);
+  border-radius: 6px;
+  background: var(--vscode-input-background, var(--pi-surface));
+  background: color-mix(in srgb, var(--pi-lavender) 10%, var(--pi-surface));
 }
 
 .message.user::before {
@@ -2782,7 +2786,7 @@ html.pi-viewport-recovering #pi-web-app {
   }
 
   .message.user {
-    padding-left: 9px;
+    padding: 10px 11px;
   }
 
   .message-image-button {
