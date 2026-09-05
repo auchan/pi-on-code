@@ -158,6 +158,16 @@ suite("Execution process grouping", () => {
       assert.strictEqual(firstProcess.tagName, "details");
       assert.strictEqual(firstProcess.className, "execution-process");
       assert.strictEqual(firstProcess.open, false, "process groups must start collapsed");
+      assert.strictEqual(
+        firstProcess.children[0].textContent,
+        "Thought",
+        "thinking-only groups use the Thought title",
+      );
+      assert.strictEqual(
+        secondProcess.children[0].textContent,
+        "* Investigated · 2 Exec",
+        "tool count excludes thinking blocks",
+      );
       assert.deepStrictEqual(firstProcess.children[1].children, [thinkingBefore]);
       assert.deepStrictEqual(secondProcess.children[1].children, [toolOne, toolTwo, thinkingAfter]);
       assert.ok(firstAnswer.textContent.includes("checking now"));

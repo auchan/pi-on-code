@@ -40,12 +40,27 @@ function extractThinkingBlocks(root: HTMLElement): void {
   });
 }
 
+function countToolExecutions(nodes: readonly HTMLElement[]): number {
+  let count = 0;
+  for (const node of nodes) {
+    if (
+      node.classList.contains("tool-block")
+      || node.classList.contains("bash-execution")
+      || node.classList.contains("bash-block")
+    ) {
+      count++;
+    }
+  }
+  return count;
+}
+
 function createExecutionProcess(nodes: readonly HTMLElement[]): HTMLDetailsElement {
   const details = document.createElement("details");
   details.className = "execution-process";
   const summary = document.createElement("summary");
   summary.className = "execution-process-summary";
-  summary.textContent = `Execution process · ${nodes.length} ${nodes.length === 1 ? "step" : "steps"}`;
+  const execCount = countToolExecutions(nodes);
+  summary.textContent = execCount > 0 ? `* Investigated · ${execCount} Exec` : "Thought";
   const content = document.createElement("div");
   content.className = "execution-process-content";
   details.append(summary, content);
