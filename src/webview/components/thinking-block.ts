@@ -25,11 +25,13 @@ export class ThinkingBlock implements Component<ThinkingBlockProps> {
   private spinnerEl: HTMLElement;
   private lineCountEl: HTMLElement;
 
-  private _collapsed = true;
+  private _collapsed = false;
+  private _streaming = true;
+  private hasContent = false;
 
   constructor(props: ThinkingBlockProps) {
     this.el = document.createElement("div");
-    this.el.className = "thinking-block thinking-collapsed";
+    this.el.className = "thinking-block";
     this.el.innerHTML = html`
       <div class="thinking-header">
         <span class="thinking-label">Thinking</span>
@@ -37,7 +39,7 @@ export class ThinkingBlock implements Component<ThinkingBlockProps> {
         <span class="thinking-line-count"></span>
       </div>
       <div class="thinking-content"></div>
-      <button class="thinking-expand-btn">Show more</button>`;
+      <button class="thinking-expand-btn">Show less</button>`;
 
     this.contentEl = this.el.querySelector(".thinking-content")!;
     this.expandBtn = this.el.querySelector(".thinking-expand-btn")!;
@@ -69,10 +71,6 @@ export class ThinkingBlock implements Component<ThinkingBlockProps> {
 
   // ── internal ──────────────────────────────────────────
 
-  private hasContent = false;
-
-  // ── internal ──────────────────────────────────────────
-
   private setContent(content: string): void {
     this.contentEl.textContent = content;
     this.hasContent = !!content;
@@ -82,27 +80,33 @@ export class ThinkingBlock implements Component<ThinkingBlockProps> {
 
   private updateDisplay(done?: boolean): void {
     const finished = done === true;
+    this._streaming = !finished;
     if (finished) {
       this.spinnerEl.remove();
     }
     // While streaming the live tail is shown directly, so the toggle is hidden;
-    // after finishing (or once expanded) it becomes the read/read-less control.
-    const showToggle = this.hasContent && (finished || !this._collapsed);
-    this.expandBtn.style.display = showToggle ? "" : "none";
+    // after finishing it becomes the fold/unfold control (content stays visible
+    // by default and is never auto-collapsed).
+    this.expandBtn.style.display = this.hasContent && finished ? "" : "none";
     this.expandBtn.textContent = this._collapsed ? "Show more" : "Show less";
   }
 
   private toggle(): void {
-    this._collapsed = !this._collapsed;
+    // Never fold while the model is still thinking: the content must stay
+    // visible throughout the streaming turn. Collapsing is only a manual,
+    // post-completion action (or happens once the turn is grouped at end).
+    if (this._streaming) { return; }
+    this.setCollapsed(!this._collapsed);
     if (this._collapsed) {
-      this.el.classList.add("thinking-collapsed");
-      this.expandBtn.textContent = "Show more";
       this.contentEl.scrollTop = 0;
       this.el.scrollIntoView({ behavior: "smooth", block: "start" });
-    } else {
-      this.el.classList.remove("thinking-collapsed");
-      this.expandBtn.textContent = "Show less";
     }
+  }
+
+  private setCollapsed(collapsed: boolean): void {
+    this._collapsed = collapsed;
+    this.el.classList.toggle("thinking-collapsed", collapsed);
+    this.expandBtn.textContent = collapsed ? "Show more" : "Show less";
   }
 
   /** Auto-scroll the content area to the bottom (for streaming). */
@@ -113,9 +117,7 @@ export class ThinkingBlock implements Component<ThinkingBlockProps> {
   /** Show the full content immediately (used when the thinking block ends up
    *  inside a collapsed execution-process group, so there is only one fold). */
   expand(): void {
-    this._collapsed = false;
-    this.el.classList.remove("thinking-collapsed");
-    this.expandBtn.textContent = "Show less";
+    this.setCollapsed(false);
   }
 
   /** Whether the thinking block is currently collapsed. */
