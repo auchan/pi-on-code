@@ -22,6 +22,10 @@ import { shouldRevealSessionPanel } from "./session-startup.js";
 import { findReusableDraft, shouldPromoteDraft } from "./session-draft.js";
 import { normalizeSessionRename } from "./session-rename.js";
 import {
+  forkSessionLabel,
+  resolveUserMessageEditTarget,
+} from "./user-message-branch.js";
+import {
   emptySessionListPreferences,
   isSessionArchived,
   moveSessionToFront,
@@ -419,6 +423,102 @@ async function deleteSidebarSession(target: PiSidebarDeleteTarget): Promise<void
   }
 }
 
+/**
+ * Rewrite a conversation from an edited historical user message.
+ *
+ * The SDK has no in-place entry mutation, so the edit is composed from its
+ * primitives: branch everything before the target message into a new session
+ * file (predecessor keeps its ids for prefix-cache reuse), open it, send the
+ * edited text as the fresh user message, then retire and delete the superseded
+ * session. Editing the first message starts a fresh session.
+ */
+async function editHistoryMessageFromEntry(
+  context: vscode.ExtensionContext,
+  sw: SessionWindow,
+  entryId: string,
+  text: string,
+): Promise<void> {
+  const sourceSm = sw.piService.sessionManagerInstance;
+  if (!sourceSm) { throw new Error("Session has no session manager."); }
+  const sourcePath = sw.piService.sessionFilePath ?? sw.restoringPath;
+  if (!sourcePath) { throw new Error("Session has no persisted file."); }
+  const title = cleanSessionTitle(
+    sw.piService.sessionName ?? sw.webviewPanel.summary ?? sw.label,
+  );
+
+  let forkedPath: string | null = null;
+  const tempPi = new PiService(context.secrets);
+  try {
+    const result = await tempPi.initialize({ openPath: sourcePath, cwd: sw.cwd });
+    if (!result.success) { throw new Error(`Cannot open source session: ${result.error}`); }
+    const srcSm = tempPi.sessionManagerInstance;
+    if (!srcSm) { throw new Error("Source session has no session manager."); }
+    const entries = (srcSm.getEntries?.() ?? []) as Array<{
+      id?: string;
+      type?: string;
+      message?: { role?: string };
+    }>;
+    const target = resolveUserMessageEditTarget(entries, entryId);
+    if (!target) { throw new Error("Selected entry is not a persisted user message."); }
+    if (target.predecessorId) {
+      forkedPath = srcSm.createBranchedSession(target.predecessorId);
+      if (!forkedPath) { throw new Error("Failed to build the rewritten session."); }
+    }
+  } finally {
+    tempPi.dispose();
+  }
+
+  const replacement = forkedPath
+    ? createSessionWindow(context, { path: forkedPath, title }, false, sw.cwd)
+    : createSessionWindow(context, undefined, false, sw.cwd);
+  replacement.webviewPanel.initialWelcomeVisible = false;
+  setActiveSession(replacement);
+  void replacement.webviewPanel.show();
+  sessionTreeProvider?.refresh();
+
+  const ok = await initSessionInBackground(
+    context,
+    replacement,
+    forkedPath ? { openPath: forkedPath } : { fresh: true },
+  );
+  if (!ok || !replacement.initialized) {
+    removeSession(replacement);
+    throw new Error("Failed to open the rewritten session.");
+  }
+
+  // Start the AI reply from the edited text before retiring the old session so
+  // a prompt failure leaves the original conversation intact.
+  try {
+    await replacement.piService.sendPrompt(text);
+  } catch (error: unknown) {
+    replacement.webviewPanel.onDispose = null;
+    replacement.piService.dispose();
+    removeSession(replacement);
+    replacement.webviewPanel.dispose();
+    throw new Error(
+      `Rewrite ready but could not start the reply: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  replacement.piService.setSessionName(title);
+  replacement.label = title;
+
+  // Retire the superseded window and delete its file: the edited history is
+  // now fully represented by the replacement session.
+  const wasActive = activeSessionWindow === sw;
+  sw.webviewPanel.onDispose = null;
+  sw.piService.dispose();
+  removeSession(sw);
+  sw.webviewPanel.dispose();
+  await deleteSessionFileIfPresent(sourcePath);
+  await refreshPastSessionsList();
+  await saveOpenSessionPaths();
+  sessionTreeProvider?.refresh();
+  if (wasActive || activeSessionWindow !== replacement) {
+    await replacement.webviewPanel.show();
+  }
+  vscode.window.showInformationMessage("Message rewritten; continuing from the new text.");
+}
+
 /** Create a new session window pair. Restore hints prevent transient duplicate rows. */
 function createSessionWindow(
   context: vscode.ExtensionContext,
@@ -459,6 +559,13 @@ function createSessionWindow(
   // 2. Remove it from open sessions
   // If saved successfully, it will appear in Past Sessions on next refresh.
   webviewPanel.onDispose = handlePanelDispose(sw);
+
+  // History-message actions are routed through commands so the activate-scope
+  // session helpers can run them with the full session registry.
+  webviewPanel.onEditUserMessage = (entryId, text) =>
+    void vscode.commands.executeCommand("pi-on-code.editHistoryMessage", sw.id, entryId, text);
+  webviewPanel.onForkUserMessage = (entryId) =>
+    void vscode.commands.executeCommand("pi-on-code.forkHistoryMessage", sw.id, entryId);
 
   sessions.push(sw);
   return sw;
@@ -805,7 +912,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // ── Fork helpers ─────────────────────────────────────
 
   /** Fork at a specific entry within an already-open session. */
-  async function doForkFromOpenEntry(sessionId: string, entryId: string): Promise<void> {
+  async function doForkFromOpenEntry(
+    sessionId: string,
+    entryId: string,
+    forkLabel?: string,
+  ): Promise<void> {
     const srcSw = sessions.find((s) => s.id === sessionId);
     if (!srcSw || !srcSw.piService.sessionManagerInstance) {
       throw new Error(`Source session not found (id=${sessionId}).`);
@@ -850,7 +961,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
 
     piLog(`doForkFromOpenEntry: forked to ${forkedPath}`);
-    await openForkedSession(forkedPath, srcSw.cwd);
+    await openForkedSession(forkedPath, srcSw.cwd, forkLabel);
   }
 
   /** Fork a past session at its current leaf (opens the session, then forks). */
@@ -886,7 +997,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   }
 
   /** Create a new session window initialized from a forked session file. */
-  async function openForkedSession(forkedPath: string, cwd = getWorkspaceCwd()): Promise<void> {
+  async function openForkedSession(
+    forkedPath: string,
+    cwd = getWorkspaceCwd(),
+    label?: string,
+  ): Promise<void> {
     const newSw = createSessionWindow(context, { path: forkedPath }, false, cwd);
     setActiveSession(newSw);
     void newSw.webviewPanel.show();
@@ -897,6 +1012,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (!newSw.initialized) {
       removeSession(newSw);
       throw new Error("Failed to initialize forked session.");
+    }
+
+    if (label) {
+      newSw.piService.setSessionName(label);
+      newSw.label = label;
+      sessionTreeProvider?.refresh();
     }
 
     // sendInitialMessages() is already called during initialize() inside the
@@ -964,6 +1085,51 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.window.showErrorMessage(`Clone failed: ${e.message ?? e}`);
       }
     }),
+  );
+
+  // ── Edit / fork from a historical user message (transcript actions) ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "pi-on-code.editHistoryMessage",
+      async (sessionId: unknown, entryId: unknown, text: unknown) => {
+        if (typeof sessionId !== "string" || typeof entryId !== "string" || typeof text !== "string") {
+          return;
+        }
+        const sw = sessions.find((session) => session.id === sessionId);
+        if (!sw) {
+          vscode.window.showErrorMessage("Source session not found.");
+          return;
+        }
+        try {
+          await editHistoryMessageFromEntry(context, sw, entryId, text);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } catch (e: any) {
+          vscode.window.showErrorMessage(`Edit failed: ${e.message ?? e}`);
+        }
+      },
+    ),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "pi-on-code.forkHistoryMessage",
+      async (sessionId: unknown, entryId: unknown) => {
+        if (typeof sessionId !== "string" || typeof entryId !== "string") { return; }
+        const sw = sessions.find((session) => session.id === sessionId);
+        if (!sw) {
+          vscode.window.showErrorMessage("Source session not found.");
+          return;
+        }
+        try {
+          const title = cleanSessionTitle(
+            sw.piService.sessionName ?? sw.webviewPanel.summary ?? sw.label,
+          );
+          await doForkFromOpenEntry(sw.id, entryId, forkSessionLabel(title));
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } catch (e: any) {
+          vscode.window.showErrorMessage(`Fork failed: ${e.message ?? e}`);
+        }
+      },
+    ),
   );
 
   // ── Compact session context ────────────────────────

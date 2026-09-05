@@ -610,13 +610,72 @@ export function handleChatMessage(data: any) {
       if (editorContext) { mc.appendChild(editorContext); }
     }
     if (data.role === "user" && typeof data.content === "string" && data.content.trim()) {
+      var actions = document.createElement("div");
+      actions.className = "user-actions";
+
       var userCopyButton = document.createElement("button");
       userCopyButton.type = "button";
       userCopyButton.className = "user-copy-btn";
       userCopyButton.textContent = "Copy";
       userCopyButton.setAttribute("aria-label", "Copy user message");
       (userCopyButton as HTMLButtonElement & { _copyText?: string })._copyText = data.content;
-      el.appendChild(userCopyButton);
+      actions.appendChild(userCopyButton);
+
+      // Edit / fork operate on the persisted entry, so they need its entry id
+      // and are hidden while a run is in progress.
+      if (data.entryId && !state.isStreaming) {
+        var editButton = document.createElement("button");
+        editButton.type = "button";
+        editButton.className = "user-edit-btn";
+        editButton.textContent = "Edit";
+        editButton.title = "Edit this message and continue from here";
+        editButton.setAttribute("aria-label", "Edit user message and continue from here");
+        editButton.addEventListener("click", function () {
+          if (el.querySelector(".user-edit-overlay")) { return; }
+          var overlay = document.createElement("div");
+          overlay.className = "user-edit-overlay";
+          var area = document.createElement("textarea");
+          area.className = "user-edit-input";
+          area.value = data.content;
+          area.setAttribute("aria-label", "Edited user message");
+          var bar = document.createElement("div");
+          bar.className = "user-edit-bar";
+          var saveButton = document.createElement("button");
+          saveButton.type = "button";
+          saveButton.className = "user-edit-save";
+          saveButton.textContent = "Save and continue";
+          var cancelButton = document.createElement("button");
+          cancelButton.type = "button";
+          cancelButton.className = "user-edit-cancel";
+          cancelButton.textContent = "Cancel";
+          bar.append(cancelButton, saveButton);
+          overlay.append(area, bar);
+          el.appendChild(overlay);
+          area.focus();
+          area.select();
+          cancelButton.addEventListener("click", function () { overlay.remove(); });
+          saveButton.addEventListener("click", function () {
+            var next = area.value.trim();
+            if (next && next !== data.content) {
+              window.__vscode.postMessage({ type: "user-message-edit", entryId: data.entryId, text: next });
+              overlay.remove();
+            }
+          });
+        });
+        actions.appendChild(editButton);
+
+        var forkButton = document.createElement("button");
+        forkButton.type = "button";
+        forkButton.className = "user-fork-btn";
+        forkButton.textContent = "Fork";
+        forkButton.title = "Fork a new session at this message";
+        forkButton.setAttribute("aria-label", "Fork session at this message");
+        forkButton.addEventListener("click", function () {
+          window.__vscode.postMessage({ type: "user-message-fork", entryId: data.entryId });
+        });
+        actions.appendChild(forkButton);
+      }
+      el.appendChild(actions);
     }
     state.chatContainer.appendChild(el);
     requestLocalMarkdownImages(el);

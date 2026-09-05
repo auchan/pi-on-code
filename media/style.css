@@ -2954,7 +2954,101 @@ html.pi-viewport-recovering #pi-web-app {
   padding-right: 42px;
 }
 
+.user-actions {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  display: flex;
+  gap: 4px;
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.message.user:hover .user-actions,
+.message.user:focus-within .user-actions {
+  opacity: 1;
+}
+
+.user-actions button {
+  padding: 2px 7px;
+  border: 1px solid var(--pi-line);
+  border-radius: 3px;
+  background: var(--pi-surface-raised);
+  color: var(--pi-muted);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 120ms ease;
+}
+
+.user-actions button:hover,
+.user-actions button:focus-visible {
+  border-color: var(--pi-lavender);
+  color: var(--pi-text);
+}
+
+.user-edit-overlay {
+  position: absolute;
+  z-index: 6;
+  inset: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--pi-lavender);
+  border-radius: 4px;
+  background: var(--pi-surface);
+}
+
+.user-edit-input {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  padding: 6px;
+  border: 1px solid var(--pi-line);
+  border-radius: 2px;
+  background: var(--vscode-input-background, var(--pi-surface));
+  color: var(--vscode-input-foreground, var(--pi-text));
+  font: inherit;
+}
+
+.user-edit-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.user-edit-bar button {
+  padding: 3px 10px;
+  border: 1px solid var(--pi-line);
+  border-radius: 3px;
+  background: var(--pi-surface-raised);
+  color: var(--pi-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.user-edit-save {
+  border-color: var(--pi-lavender) !important;
+  color: var(--pi-lavender) !important;
+}
+
 .user-copy-btn,
+.user-edit-btn,
+.user-fork-btn {
+  position: static;
+  right: auto;
+  top: auto;
+  transform: none;
+  opacity: 1;
+}
+
+.tool-block,
+.bash-execution {
+  position: relative;
+}
+
 .tool-copy-btn {
   position: absolute;
   right: 8px;
@@ -2971,17 +3065,10 @@ html.pi-viewport-recovering #pi-web-app {
   transition: opacity 120ms ease;
 }
 
-.message.user:hover .user-copy-btn,
-.user-copy-btn:focus-visible,
 .tool-block:hover .tool-copy-btn,
 .bash-execution:hover .tool-copy-btn,
 .tool-copy-btn:focus-visible {
   opacity: 1;
-}
-
-.tool-block,
-.bash-execution {
-  position: relative;
 }
 
 /* Generic extension tools expose their arguments in the header. */
