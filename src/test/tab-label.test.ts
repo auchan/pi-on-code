@@ -18,6 +18,9 @@ suite("Session tab label limits", () => {
   });
 
   test("counts code points instead of UTF-16 code units", () => {
+    const exactLengthLabel = "🤖".repeat(28);
+    assert.strictEqual(limitTabLabel(exactLengthLabel, 28), exactLengthLabel);
+
     const label = "🤖".repeat(40) + " title";
     const limited = limitTabLabel(label, 28);
     assert.strictEqual(Array.from(limited).length, 29);

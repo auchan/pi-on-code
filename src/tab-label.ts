@@ -17,6 +17,6 @@ export function limitTabLabel(
   maxLength: number = DEFAULT_TAB_LABEL_MAX,
 ): string {
   const compact = label.replace(/\s+/g, " ").trim();
-  if (compact.length <= maxLength) { return compact; }
+  if (Array.from(compact).length <= maxLength) { return compact; }
   return `${sliceCodePoints(compact, maxLength).replace(/[\s.…]+$/u, "")}…`;
 }
