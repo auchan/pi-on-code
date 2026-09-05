@@ -60,7 +60,7 @@ function createExecutionProcess(nodes: readonly HTMLElement[]): HTMLDetailsEleme
   const summary = document.createElement("summary");
   summary.className = "execution-process-summary";
   const execCount = countToolExecutions(nodes);
-  summary.textContent = execCount > 0 ? `* Investigated · ${execCount} Exec` : "Thought";
+  summary.textContent = execCount > 0 ? `Investigated · ${execCount} Exec` : "Thought";
   const content = document.createElement("div");
   content.className = "execution-process-content";
   details.append(summary, content);

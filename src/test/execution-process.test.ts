@@ -165,7 +165,7 @@ suite("Execution process grouping", () => {
       );
       assert.strictEqual(
         secondProcess.children[0].textContent,
-        "* Investigated · 2 Exec",
+        "Investigated · 2 Exec",
         "tool count excludes thinking blocks",
       );
       assert.deepStrictEqual(firstProcess.children[1].children, [thinkingBefore]);

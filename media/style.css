@@ -2965,15 +2965,16 @@ html.pi-viewport-recovering #pi-web-app {
 }
 
 .execution-process {
-  margin: 6px 0;
+  margin: 0;
   color: var(--pi-muted);
 }
 
 .execution-process-summary {
-  padding: 5px 0;
+  padding: 2px 0;
   color: var(--pi-faint);
   cursor: pointer;
   font-size: 11px;
+  line-height: 1.5;
   list-style: none;
   user-select: none;
 }
@@ -2984,20 +2985,23 @@ html.pi-viewport-recovering #pi-web-app {
 
 .execution-process-summary::before {
   display: inline-block;
-  width: 14px;
+  width: 16px;
+  margin-right: 2px;
   color: var(--pi-lavender);
-  content: "›";
-  transform-origin: 40% 50%;
-  transition: transform 120ms ease;
+  content: "*";
 }
 
 .execution-process[open] > .execution-process-summary::before {
-  transform: rotate(90deg);
+  content: "✳";
 }
 
 .execution-process-summary:hover,
 .execution-process-summary:focus-visible {
   color: var(--pi-text);
+}
+
+.execution-process[open] > .execution-process-content {
+  padding-top: 6px;
 }
 
 .execution-process-content {
