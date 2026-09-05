@@ -25,11 +25,13 @@ export class ThinkingBlock implements Component<ThinkingBlockProps> {
   private spinnerEl: HTMLElement;
   private lineCountEl: HTMLElement;
 
-  private _collapsed = true;
+  private _collapsed = false;
+  private _streaming = true;
+  private hasContent = false;
 
   constructor(props: ThinkingBlockProps) {
     this.el = document.createElement("div");
-    this.el.className = "thinking-block thinking-collapsed";
+    this.el.className = "thinking-block";
     this.el.innerHTML = html`
       <div class="thinking-header">
         <span class="thinking-label">Thinking</span>
@@ -37,7 +39,7 @@ export class ThinkingBlock implements Component<ThinkingBlockProps> {
         <span class="thinking-line-count"></span>
       </div>
       <div class="thinking-content"></div>
-      <button class="thinking-expand-btn">Show more</button>`;
+      <button class="thinking-expand-btn">Show less</button>`;
 
     this.contentEl = this.el.querySelector(".thinking-content")!;
     this.expandBtn = this.el.querySelector(".thinking-expand-btn")!;
@@ -46,6 +48,8 @@ export class ThinkingBlock implements Component<ThinkingBlockProps> {
 
     // Wire toggle
     this.expandBtn.addEventListener("click", () => this.toggle());
+    const header = this.el.querySelector(".thinking-header")!;
+    header.addEventListener("click", () => this.toggle());
 
     // Set initial content via textContent (safe, no HTML parse)
     this.setContent(props.content);
@@ -69,42 +73,51 @@ export class ThinkingBlock implements Component<ThinkingBlockProps> {
 
   private setContent(content: string): void {
     this.contentEl.textContent = content;
+    this.hasContent = !!content;
     const lines = content ? content.split("\n").length : 0;
     this.lineCountEl.textContent = lines > 0 ? `(${lines} lines)` : "";
   }
 
   private updateDisplay(done?: boolean): void {
-    if (done) {
+    const finished = done === true;
+    this._streaming = !finished;
+    if (finished) {
       this.spinnerEl.remove();
-      // Update expand button visibility based on overflow
-      const overflowing =
-        this.contentEl.scrollHeight > this.contentEl.clientHeight + 2;
-      if (this._collapsed) {
-        this.expandBtn.style.display = overflowing ? "" : "none";
-        this.expandBtn.textContent = "Show more";
-      } else {
-        this.expandBtn.style.display = "";
-        this.expandBtn.textContent = "Show less";
-      }
     }
+    // While streaming the live tail is shown directly, so the toggle is hidden;
+    // after finishing it becomes the fold/unfold control (content stays visible
+    // by default and is never auto-collapsed).
+    this.expandBtn.style.display = this.hasContent && finished ? "" : "none";
+    this.expandBtn.textContent = this._collapsed ? "Show more" : "Show less";
   }
 
   private toggle(): void {
-    this._collapsed = !this._collapsed;
+    // Never fold while the model is still thinking: the content must stay
+    // visible throughout the streaming turn. Collapsing is only a manual,
+    // post-completion action (or happens once the turn is grouped at end).
+    if (this._streaming) { return; }
+    this.setCollapsed(!this._collapsed);
     if (this._collapsed) {
-      this.el.classList.add("thinking-collapsed");
-      this.expandBtn.textContent = "Show more";
       this.contentEl.scrollTop = 0;
       this.el.scrollIntoView({ behavior: "smooth", block: "start" });
-    } else {
-      this.el.classList.remove("thinking-collapsed");
-      this.expandBtn.textContent = "Show less";
     }
+  }
+
+  private setCollapsed(collapsed: boolean): void {
+    this._collapsed = collapsed;
+    this.el.classList.toggle("thinking-collapsed", collapsed);
+    this.expandBtn.textContent = collapsed ? "Show more" : "Show less";
   }
 
   /** Auto-scroll the content area to the bottom (for streaming). */
   scrollToBottom(): void {
     this.contentEl.scrollTop = this.contentEl.scrollHeight;
+  }
+
+  /** Show the full content immediately (used when the thinking block ends up
+   *  inside a collapsed execution-process group, so there is only one fold). */
+  expand(): void {
+    this.setCollapsed(false);
   }
 
   /** Whether the thinking block is currently collapsed. */

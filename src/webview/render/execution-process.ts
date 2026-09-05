@@ -87,6 +87,31 @@ export function openExecutionProcessForElement(element: Element): void {
   if (details) { details.open = true; }
 }
 
+interface ThinkingComponentLike {
+  expand?: () => void;
+}
+
+/** Expand a finished thinking block that was just folded into an execution
+ *  group, so it reads directly in its internal scroller. Live blocks (still
+ *  showing a spinner) and non-component nodes are left untouched. */
+function expandFinishedThinking(block: HTMLElement): void {
+  if (typeof block.querySelector === "function") {
+    if (block.querySelector(".thinking-spinner")) { return; }
+  }
+  const component = (block as HTMLElement & { _component?: ThinkingComponentLike })._component;
+  if (component && typeof component.expand === "function") {
+    component.expand();
+    return;
+  }
+  if (typeof block.classList.remove === "function") {
+    block.classList.remove("thinking-collapsed");
+  }
+  const button = typeof block.querySelector === "function"
+    ? block.querySelector<HTMLElement>(".thinking-expand-btn")
+    : null;
+  if (button) { button.textContent = "Show less"; }
+}
+
 /** Group completed thinking and tool runs without touching assistant prose. */
 export function collapseExecutionProcesses(root: HTMLElement): void {
   extractThinkingBlocks(root);
@@ -103,5 +128,11 @@ export function collapseExecutionProcesses(root: HTMLElement): void {
   for (let index = runs.length - 1; index >= 0; index--) {
     const run = runs[index]!;
     createExecutionProcess(children.slice(run.start, run.start + run.length));
+    // The outer details row is the only fold the user should see: open any
+    // finished thinking block inside the group so its text reads directly in
+    // its internal scroller instead of requiring a second level of collapsing.
+    children.slice(run.start, run.start + run.length).forEach((node) => {
+      if (node.classList.contains("thinking-block")) { expandFinishedThinking(node); }
+    });
   }
 }

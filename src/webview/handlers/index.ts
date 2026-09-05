@@ -402,6 +402,7 @@ export function handleAgentEnd() {
     if (!state._inBatch) { collapseExecutionProcesses(state.chatContainer); }
     updateLastAssistantCopyButton(state.chatContainer);
     updateStreamingState();
+    settleScrollToBottom();
   }
 
   // ═══ Turn Lifecycle ════════════════════════════════════
@@ -987,6 +988,16 @@ export function handleBatchStart(data: any) {
     document.body.classList.add("no-animate");
   }
 
+function settleScrollToBottom(): void {
+  // Async rendering (images, local Markdown data URIs, syntax highlighting) can
+  // grow the transcript after the initial follow scroll. Re-apply the follow a
+  // few times so the view settles on the true live edge instead of leaving a
+  // blank strip below the last message. Each call is owner-gated, so a user who
+  // scrolls away is never yanked back.
+  scrollToBottom();
+  [120, 400, 1000].forEach((ms) => window.setTimeout(scrollToBottom, ms));
+}
+
 export function handleBatchEnd(data: any) {
     state._inBatch = false;
     if (data?.hasEntries === false) { showWelcome(); }
@@ -1009,6 +1020,7 @@ export function handleBatchEnd(data: any) {
         });
       });
     });
+    settleScrollToBottom();
   }
 
 interface HistoryPrependContext {
