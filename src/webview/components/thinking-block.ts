@@ -110,6 +110,14 @@ export class ThinkingBlock implements Component<ThinkingBlockProps> {
     this.contentEl.scrollTop = this.contentEl.scrollHeight;
   }
 
+  /** Show the full content immediately (used when the thinking block ends up
+   *  inside a collapsed execution-process group, so there is only one fold). */
+  expand(): void {
+    this._collapsed = false;
+    this.el.classList.remove("thinking-collapsed");
+    this.expandBtn.textContent = "Show less";
+  }
+
   /** Whether the thinking block is currently collapsed. */
   get collapsed(): boolean {
     return this._collapsed;
