@@ -26,6 +26,11 @@ import {
   resolveUserMessageEditTarget,
 } from "./user-message-branch.js";
 import {
+  canEditSession,
+  resolveEditOutcome,
+  waitForReplyStart,
+} from "./edit-flow.js";
+import {
   emptySessionListPreferences,
   isSessionArchived,
   moveSessionToFront,
@@ -440,6 +445,9 @@ async function editHistoryMessageFromEntry(
 ): Promise<void> {
   const sourceSm = sw.piService.sessionManagerInstance;
   if (!sourceSm) { throw new Error("Session has no session manager."); }
+  if (!canEditSession(sw.isStreaming)) {
+    throw new Error("Stop the current run before editing a historical message.");
+  }
   const sourcePath = sw.piService.sessionFilePath ?? sw.restoringPath;
   if (!sourcePath) { throw new Error("Session has no persisted file."); }
   const title = cleanSessionTitle(
@@ -482,40 +490,72 @@ async function editHistoryMessageFromEntry(
     forkedPath ? { openPath: forkedPath } : { fresh: true },
   );
   if (!ok || !replacement.initialized) {
-    removeSession(replacement);
-    throw new Error("Failed to open the rewritten session.");
-  }
-
-  // Start the AI reply from the edited text before retiring the old session so
-  // a prompt failure leaves the original conversation intact.
-  try {
-    await replacement.piService.sendPrompt(text);
-  } catch (error: unknown) {
+    // Nothing was produced yet: clean up the branch file and window so no
+    // orphan session leaks into Past Sessions.
     replacement.webviewPanel.onDispose = null;
     replacement.piService.dispose();
     removeSession(replacement);
     replacement.webviewPanel.dispose();
-    throw new Error(
-      `Rewrite ready but could not start the reply: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    if (forkedPath) { await deleteSessionFileIfPresent(forkedPath); }
+    await refreshPastSessionsList();
+    throw new Error("Failed to open the rewritten session.");
   }
+
   replacement.piService.setSessionName(title);
   replacement.label = title;
 
-  // Retire the superseded window and delete its file: the edited history is
-  // now fully represented by the replacement session.
-  const wasActive = activeSessionWindow === sw;
-  sw.webviewPanel.onDispose = null;
-  sw.piService.dispose();
-  removeSession(sw);
-  sw.webviewPanel.dispose();
-  await deleteSessionFileIfPresent(sourcePath);
+  // Start the reply from the edited text. The rewrite is committed as soon as
+  // the agent run actually starts (or the prompt settles cleanly without being
+  // observed): a later abort or API failure keeps the replacement session.
+  // Only when no run ever started do we roll back and delete the branch file.
+  let promptError: unknown = null;
+  const promptDone = { value: false };
+  const promptPromise = replacement.piService.sendPrompt(text);
+  promptPromise.then(
+    () => { promptDone.value = true; },
+    (error: unknown) => { promptDone.value = true; promptError = error; },
+  );
+  const observation = await waitForReplyStart(
+    () => replacement.isStreaming,
+    () => promptDone.value,
+  );
+  if (resolveEditOutcome(observation) === "rollback") {
+    replacement.webviewPanel.onDispose = null;
+    replacement.piService.dispose();
+    removeSession(replacement);
+    replacement.webviewPanel.dispose();
+    if (forkedPath) { await deleteSessionFileIfPresent(forkedPath); }
+    await refreshPastSessionsList();
+    const detail = promptError instanceof Error ? promptError.message : String(promptError ?? "the reply did not start");
+    throw new Error(`Rewrite rolled back (${detail}); the original session is unchanged.`);
+  }
+
+  // Commit: retire and delete the superseded session now that the rewritten
+  // conversation is producing a reply. Re-check it is idle so a file that is
+  // still being appended is never deleted.
+  if (!canEditSession(sw.isStreaming)) {
+    vscode.window.showWarningMessage(
+      "The original session started running during the rewrite; its file was kept.",
+    );
+  } else {
+    const wasActive = activeSessionWindow === sw;
+    sw.webviewPanel.onDispose = null;
+    sw.piService.dispose();
+    removeSession(sw);
+    sw.webviewPanel.dispose();
+    await deleteSessionFileIfPresent(sourcePath);
+    if (wasActive || activeSessionWindow !== replacement) {
+      await replacement.webviewPanel.show();
+    }
+  }
   await refreshPastSessionsList();
   await saveOpenSessionPaths();
   sessionTreeProvider?.refresh();
-  if (wasActive || activeSessionWindow !== replacement) {
-    await replacement.webviewPanel.show();
-  }
+  void promptPromise.then(undefined, (error: unknown) => {
+    void vscode.window.showErrorMessage(
+      `Reply stopped after the rewrite: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  });
   vscode.window.showInformationMessage("Message rewritten; continuing from the new text.");
 }
 
@@ -1123,6 +1163,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           const title = cleanSessionTitle(
             sw.piService.sessionName ?? sw.webviewPanel.summary ?? sw.label,
           );
+          if (!canEditSession(sw.isStreaming)) {
+            vscode.window.showWarningMessage("Stop the current run before forking a historical message.");
+            return;
+          }
           await doForkFromOpenEntry(sw.id, entryId, forkSessionLabel(title));
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {

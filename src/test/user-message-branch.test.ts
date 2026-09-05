@@ -72,6 +72,9 @@ suite("User message branch helpers", () => {
     assert.match(handlers, /className = "user-edit-btn"/);
     assert.match(handlers, /className = "user-fork-btn"/);
     assert.match(handlers, /\.user-edit-overlay/);
+    assert.match(handlers, /function setUserEditActionsEnabled\(enabled: boolean\)/);
+    assert.match(handlers, /setUserEditActionsEnabled\(false\)/);
+    assert.match(handlers, /setUserEditActionsEnabled\(true\)/);
 
     const panel = readFileSync(
       new URL("../../src/webview-panel.ts", import.meta.url),
@@ -90,5 +93,10 @@ suite("User message branch helpers", () => {
     assert.match(extension, /createBranchedSession\(target\.predecessorId\)/);
     assert.match(extension, /sendPrompt\(text\)/);
     assert.match(extension, /forkSessionLabel\(title\)/);
+    assert.match(extension, /canEditSession\(sw\.isStreaming\)/);
+    assert.match(extension, /waitForReplyStart\(/);
+    assert.match(extension, /resolveEditOutcome\(observation\)/);
+    assert.match(extension, /deleteSessionFileIfPresent\(forkedPath\)/);
+    assert.match(extension, /Stop the current run before editing a historical message\./);
   });
 });

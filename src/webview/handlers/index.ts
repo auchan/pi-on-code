@@ -252,9 +252,19 @@ function handleExtensionMessage(msg: any): void {
   // ═══ Agent Lifecycle ═══════════════════════════════════
   // ═══ Agent Lifecycle ═══════════════════════════════════
 
+/** Keep Edit/Fork disabled while an agent run is active so history rewrites
+ *  can never race a running session. */
+function setUserEditActionsEnabled(enabled: boolean): void {
+  document.querySelectorAll<HTMLButtonElement>(".user-edit-btn, .user-fork-btn").forEach((button) => {
+    button.disabled = !enabled;
+    button.setAttribute("aria-disabled", String(!enabled));
+  });
+}
+
 export function handleAgentStart() {
     logEvent("agent-start", { bashBlocksN: Object.keys(state.bashBlocks).length, toolBlocksN: Object.keys(state.currentToolBlocks).length });
     state.isStreaming = true;
+    setUserEditActionsEnabled(false);
     state.queueMode = "steer";  // reset to default on new stream
     state.assistantToolCallIds = {};
     // Do NOT clear the live panel here — extension cards (like tldr summaries)
@@ -333,6 +343,7 @@ export function handleAgentEnd() {
       toolKeys: Object.keys(state.currentToolBlocks),
     });
     state.isStreaming = false;
+    setUserEditActionsEnabled(true);
     state.isRetrying = false;
     state.assistantToolCallIds = {};
     removeWorkingIndicator();
