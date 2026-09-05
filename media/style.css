@@ -2092,7 +2092,7 @@ html.pi-viewport-recovering #pi-web-app {
   width: 100%;
   max-width: none;
   align-self: stretch;
-  padding: 14px 0;
+  padding: 6px 0;
   border-top: 1px solid var(--pi-line-soft);
   animation: pi-message-in 120ms ease-out;
 }
@@ -2962,4 +2962,55 @@ html.pi-viewport-recovering #pi-web-app {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.execution-process {
+  margin: 0;
+  color: var(--pi-muted);
+}
+
+.execution-process-summary {
+  padding: 6px 0;
+  color: var(--pi-faint);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1.5;
+  list-style: none;
+  user-select: none;
+}
+
+.execution-process-summary::-webkit-details-marker {
+  display: none;
+}
+
+.execution-process-summary::before {
+  display: inline-block;
+  width: 16px;
+  margin-right: 2px;
+  color: var(--pi-lavender);
+  content: "*";
+}
+
+.execution-process[open] > .execution-process-summary::before {
+  content: "✳";
+}
+
+.execution-process-summary:hover,
+.execution-process-summary:focus-visible {
+  color: var(--pi-text);
+}
+
+.execution-process-content {
+  padding-left: 8px;
+  border-left: 1px solid var(--pi-line);
+}
+
+.execution-process-content > :first-child {
+  margin-top: 0;
+  border-top: 0;
+}
+
+.execution-process-content > :last-child {
+  margin-bottom: 0;
+  border-bottom: 0;
 }
