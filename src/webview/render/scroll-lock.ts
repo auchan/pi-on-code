@@ -43,13 +43,28 @@ export function nextScrollOwner(
 
 type ScheduleFrame = (callback: () => void) => void;
 
+/**
+ * Monotonic generation counter for follow-scroll frames. Every scheduled
+ * follow captures the current generation; cancelling bumps the generation so
+ * already-scheduled frames become no-ops instead of yanking the view back to
+ * the bottom after the user starts scrolling up.
+ */
+let followGeneration = 0;
+
+/** Invalidate any follow-scroll frame scheduled before this call. */
+export function cancelFollowScroll(): void {
+  followGeneration++;
+}
+
 export function scheduleFollowScroll(
   viewport: ScrollViewport,
   shouldFollow: () => boolean,
   scheduleFrame: ScheduleFrame = (callback) => { requestAnimationFrame(callback); },
 ): void {
   if (!shouldFollow()) { return; }
+  const generation = followGeneration;
   scheduleFrame(() => {
+    if (generation !== followGeneration) { return; }
     if (shouldFollow()) {
       viewport.scrollTop = viewport.scrollHeight;
     }

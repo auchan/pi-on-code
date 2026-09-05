@@ -1,5 +1,6 @@
 import * as assert from "node:assert";
 import {
+  cancelFollowScroll,
   nextScrollOwner,
   scheduleFollowScroll,
   type ScrollViewport,
@@ -89,5 +90,33 @@ suite("Webview conversation scroll lock", () => {
 
     assert.strictEqual(scheduleCount, 0);
     assert.strictEqual(viewport.scrollTop, 240);
+  });
+
+  test("cancel prevents an already-scheduled follow frame from snapping", () => {
+    const viewport: ScrollViewport = { scrollTop: 240, scrollHeight: 1200 };
+    let scheduled: (() => void) | undefined;
+
+    scheduleFollowScroll(viewport, () => true, (callback) => {
+      scheduled = callback;
+    });
+    cancelFollowScroll();
+    scheduled?.();
+
+    assert.strictEqual(viewport.scrollTop, 240);
+  });
+
+  test("follow scrolling works again after cancellation", () => {
+    const viewport: ScrollViewport = { scrollTop: 240, scrollHeight: 1200 };
+
+    scheduleFollowScroll(viewport, () => true, () => {});
+    cancelFollowScroll();
+
+    let second: (() => void) | undefined;
+    scheduleFollowScroll(viewport, () => true, (callback) => {
+      second = callback;
+    });
+    second?.();
+
+    assert.strictEqual(viewport.scrollTop, 1200);
   });
 });

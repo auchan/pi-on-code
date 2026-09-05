@@ -18,7 +18,7 @@ import {
   scrollToBottom,
 } from "./render/engine.js";
 import { shouldLoadOlderHistory } from "./render/history-pagination.js";
-import { nextScrollOwner } from "./render/scroll-lock.js";
+import { cancelFollowScroll, nextScrollOwner } from "./render/scroll-lock.js";
 import { ConversationMinimap } from "./components/conversation-minimap.js";
 import { ScrollToBottomButton } from "./components/scroll-to-bottom-button.js";
 
@@ -134,10 +134,36 @@ function markUserScrollIntent(): void {
   userScrollIntentTimer = window.setTimeout(clearUserScrollIntent, 300);
 }
 
+/**
+ * Hand scroll control to the user immediately, before the browser fires the
+ * scroll event for this input. Waiting for the event lets an already-scheduled
+ * follow frame (queued by the previous streaming chunk) run first and yank the
+ * view back to the bottom, which makes auto-scroll appear to fight the wheel.
+ */
+function takeUserScrollControl(): void {
+  markUserScrollIntent();
+  cancelFollowScroll();
+  state.scrollOwner = "user";
+}
+
+function isConversationAtBottom(threshold = 50): boolean {
+  return state.chatContainer.scrollHeight -
+      state.chatContainer.scrollTop -
+      state.chatContainer.clientHeight <
+    threshold;
+}
+
 state.chatContainer.addEventListener("wheel", (event) => {
-  // Any wheel input while reading older content takes over scrolling so
-  // streamed output cannot pull the user back to the bottom.
-  if (event.deltaY !== 0) { markUserScrollIntent(); }
+  if (event.deltaY === 0) { return; }
+  if (event.deltaY < 0) {
+    // Scrolling up always means the user is reading older content: stop
+    // auto-scroll immediately.
+    takeUserScrollControl();
+  } else if (!isConversationAtBottom()) {
+    // Scrolling down through older content also takes over until the live
+    // edge is reached again.
+    takeUserScrollControl();
+  }
 }, { passive: true });
 
 state.chatContainer.addEventListener("pointerdown", (event) => {
@@ -148,12 +174,12 @@ state.chatContainer.addEventListener("pointerdown", (event) => {
   );
   if (event.button === 1 || event.clientX >= bounds.right - scrollbarWidth) {
     scrollbarPointerActive = true;
-    markUserScrollIntent();
+    takeUserScrollControl();
   }
 });
 
 state.chatContainer.addEventListener("pointermove", () => {
-  if (scrollbarPointerActive) { markUserScrollIntent(); }
+  if (scrollbarPointerActive) { takeUserScrollControl(); }
 });
 document.addEventListener("pointerup", () => {
   scrollbarPointerActive = false;
@@ -172,7 +198,7 @@ state.chatContainer.addEventListener("touchstart", (event) => {
 state.chatContainer.addEventListener("touchmove", (event) => {
   const currentTouchY = event.touches[0]?.clientY;
   if (currentTouchY !== undefined && previousTouchY !== null && currentTouchY > previousTouchY) {
-    markUserScrollIntent();
+    takeUserScrollControl();
   }
   previousTouchY = currentTouchY ?? null;
 }, { passive: true });
@@ -195,17 +221,12 @@ document.addEventListener("keydown", (event) => {
     event.key === "ArrowUp" || event.key === "PageUp" || event.key === "Home" ||
     (event.key === " " && event.shiftKey)
   ) {
-    markUserScrollIntent();
+    takeUserScrollControl();
   }
 });
 
 state.chatContainer.addEventListener("scroll", () => {
-  const threshold = 50;
-  const atBottom =
-    state.chatContainer.scrollHeight -
-      state.chatContainer.scrollTop -
-      state.chatContainer.clientHeight <
-    threshold;
+  const atBottom = isConversationAtBottom();
   state.scrollOwner = nextScrollOwner(state.scrollOwner, {
     isAtBottom: atBottom,
     hasUserIntent: hasUserScrollIntent || scrollbarPointerActive,
