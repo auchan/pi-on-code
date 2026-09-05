@@ -11,6 +11,7 @@ import {
   shortenPath, renderCodeBlockHTML,
 } from "../render/engine.js";
 import { restoreScrollAfterPrepend } from "../render/history-pagination.js";
+import { collapseExecutionProcesses } from "../render/execution-process.js";
 import { isAllowedMarkdownLink } from "../render/markdown-inline.js";
 import { navigateAutocompleteSelection } from "../render/autocomplete-navigation.js";
 import {
@@ -348,6 +349,7 @@ export function handleAgentEnd() {
       }
     });
 
+    if (!state._inBatch) { collapseExecutionProcesses(state.chatContainer); }
     updateStreamingState();
   }
 
@@ -948,6 +950,7 @@ export function handleBatchEnd(data: any) {
     if (data?.hasEntries === false) { showWelcome(); }
     state.historyHasMore = data?.hasMoreHistory === true;
     document.body.classList.remove("no-animate");
+    collapseExecutionProcesses(state.chatContainer);
     // Force-scroll to bottom after the newest page is restored. Triple-rAF
     // lets markdown, code blocks, and syntax highlighting finish layout.
     requestAnimationFrame(function () {
@@ -1089,6 +1092,7 @@ export function handleHistoryPageEnd(data: any) {
     state.historyHasMore = data?.hasMoreHistory === true;
     document.body.classList.remove("no-animate");
     historyPrependContext = null;
+    collapseExecutionProcesses(context.root);
 
     // Restore the anchor synchronously so consecutive history pages accumulate
     // their offsets correctly. Deferring to a double-RAF made every page save
@@ -3063,6 +3067,9 @@ export function handleRevealEntry(entryId: string, toolCallId: string, waitFrame
     }
 
     if (!el) {return;}
+
+    const executionProcess = el.closest<HTMLDetailsElement>("details.execution-process");
+    if (executionProcess) { executionProcess.open = true; }
 
     // Debounce repeated reveal requests: only the latest target keeps a
     // highlight, so a burst of revealEntry messages never causes strobing.

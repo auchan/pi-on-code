@@ -2963,3 +2963,52 @@ html.pi-viewport-recovering #pi-web-app {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.execution-process {
+  margin: 6px 0;
+  color: var(--pi-muted);
+}
+
+.execution-process-summary {
+  padding: 5px 0;
+  color: var(--pi-faint);
+  cursor: pointer;
+  font-size: 11px;
+  list-style: none;
+  user-select: none;
+}
+
+.execution-process-summary::-webkit-details-marker {
+  display: none;
+}
+
+.execution-process-summary::before {
+  display: inline-block;
+  width: 14px;
+  color: var(--pi-lavender);
+  content: "›";
+  transform-origin: 40% 50%;
+  transition: transform 120ms ease;
+}
+
+.execution-process[open] > .execution-process-summary::before {
+  transform: rotate(90deg);
+}
+
+.execution-process-summary:hover,
+.execution-process-summary:focus-visible {
+  color: var(--pi-text);
+}
+
+.execution-process-content {
+  padding-left: 8px;
+  border-left: 1px solid var(--pi-line);
+}
+
+.execution-process-content > :first-child {
+  margin-top: 0;
+}
+
+.execution-process-content > :last-child {
+  margin-bottom: 0;
+}
