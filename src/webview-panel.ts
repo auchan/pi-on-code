@@ -89,8 +89,9 @@ export class PiWebviewPanel {
   set onActivate(cb: (() => void) | null) { this._onActivateCb = cb; }
   private _onActivateCb: (() => void) | null = null;
   get isActive(): boolean { return this.panel?.active === true; }
+  get viewColumn(): vscode.ViewColumn | undefined { return this.panel?.viewColumn; }
 
-  async show(): Promise<void> {
+  async show(column?: vscode.ViewColumn): Promise<void> {
     if (this.panel) {
       this.panel.reveal();
       // Retained webviews can keep the compositor surface from the size they
@@ -107,7 +108,7 @@ export class PiWebviewPanel {
     this.panel = vscode.window.createWebviewPanel(
       "pi-chat-" + randomId,
       "Pi on Code",
-      vscode.ViewColumn.Two,
+      column ?? vscode.ViewColumn.Two,
       {
         enableScripts: true,
         retainContextWhenHidden: true,

@@ -22,6 +22,10 @@ import { shouldRevealSessionPanel } from "./session-startup.js";
 import { findReusableDraft, shouldPromoteDraft } from "./session-draft.js";
 import { normalizeSessionRename } from "./session-rename.js";
 import {
+  parseChatPanelLocation,
+  resolveChatColumnTarget,
+} from "./chat-panel-location.js";
+import {
   emptySessionListPreferences,
   isSessionArchived,
   moveSessionToFront,
@@ -1604,7 +1608,19 @@ function addSession(context: vscode.ExtensionContext, cwd = getWorkspaceCwd()): 
     void saveOpenSessionPaths();
   };
   setActiveSession(sw);
-  void sw.webviewPanel.show();
+  const location = parseChatPanelLocation(
+    vscode.workspace.getConfiguration("pi-on-code").get("chatPanelLocation"),
+  );
+  const openChatColumns = sessions
+    .map((session) => session.webviewPanel.viewColumn)
+    .filter((column): column is number => typeof column === "number");
+  const target = resolveChatColumnTarget(location, openChatColumns);
+  const viewColumn = target.kind === "active"
+    ? vscode.ViewColumn.Active
+    : target.kind === "beside"
+      ? vscode.ViewColumn.Beside
+      : target.column;
+  void sw.webviewPanel.show(viewColumn);
   void initSessionInBackground(context, sw, { fresh: true });
 }
 
