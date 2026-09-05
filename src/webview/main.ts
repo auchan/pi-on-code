@@ -117,6 +117,13 @@ let hasUserScrollIntent = false;
 let userScrollIntentTimer: number | null = null;
 let scrollbarPointerActive = false;
 let previousTouchY: number | null = null;
+let lastPointerClientY: number | null = null;
+
+/** After an explicit upward gesture, keep user ownership for this long even
+ *  when the view is still inside the bottom tolerance, so streaming cannot
+ *  immediately snap it back to the live edge. */
+const UPWARD_GRACE_MS = 500;
+let lastUpInputAt = 0;
 
 function clearUserScrollIntent(): void {
   hasUserScrollIntent = false;
@@ -146,6 +153,19 @@ function takeUserScrollControl(): void {
   state.scrollOwner = "user";
 }
 
+/** An explicit gesture toward older content (wheel up, thumb up, touch up,
+ *  page-up keys). It takes control and latches it for UPWARD_GRACE_MS so a
+ *  follow-up scroll event that is still inside the bottom tolerance cannot
+ *  hand the view back to streaming. */
+function markUpwardScrollInput(): void {
+  takeUserScrollControl();
+  lastUpInputAt = performance.now();
+}
+
+function clearUpwardScrollGrace(): void {
+  lastUpInputAt = 0;
+}
+
 function isConversationAtBottom(threshold = 50): boolean {
   return state.chatContainer.scrollHeight -
       state.chatContainer.scrollTop -
@@ -157,12 +177,16 @@ state.chatContainer.addEventListener("wheel", (event) => {
   if (event.deltaY === 0) { return; }
   if (event.deltaY < 0) {
     // Scrolling up always means the user is reading older content: stop
-    // auto-scroll immediately.
-    takeUserScrollControl();
-  } else if (!isConversationAtBottom()) {
-    // Scrolling down through older content also takes over until the live
-    // edge is reached again.
-    takeUserScrollControl();
+    // auto-scroll immediately and keep control near the live edge.
+    markUpwardScrollInput();
+  } else {
+    // A downward gesture may reach the live edge and hand control back.
+    clearUpwardScrollGrace();
+    if (!isConversationAtBottom()) {
+      // Scrolling down through older content also takes over until the live
+      // edge is reached again.
+      takeUserScrollControl();
+    }
   }
 }, { passive: true });
 
@@ -174,21 +198,32 @@ state.chatContainer.addEventListener("pointerdown", (event) => {
   );
   if (event.button === 1 || event.clientX >= bounds.right - scrollbarWidth) {
     scrollbarPointerActive = true;
+    lastPointerClientY = event.clientY;
     takeUserScrollControl();
   }
 });
 
-state.chatContainer.addEventListener("pointermove", () => {
-  if (scrollbarPointerActive) { takeUserScrollControl(); }
+state.chatContainer.addEventListener("pointermove", (event) => {
+  if (!scrollbarPointerActive) { return; }
+  if (lastPointerClientY !== null && event.clientY < lastPointerClientY) {
+    markUpwardScrollInput();
+  } else {
+    clearUpwardScrollGrace();
+    takeUserScrollControl();
+  }
+  lastPointerClientY = event.clientY;
 });
 document.addEventListener("pointerup", () => {
   scrollbarPointerActive = false;
+  lastPointerClientY = null;
 });
 document.addEventListener("pointercancel", () => {
   scrollbarPointerActive = false;
+  lastPointerClientY = null;
 });
 window.addEventListener("blur", () => {
   scrollbarPointerActive = false;
+  lastPointerClientY = null;
   clearUserScrollIntent();
 });
 
@@ -198,7 +233,7 @@ state.chatContainer.addEventListener("touchstart", (event) => {
 state.chatContainer.addEventListener("touchmove", (event) => {
   const currentTouchY = event.touches[0]?.clientY;
   if (currentTouchY !== undefined && previousTouchY !== null && currentTouchY > previousTouchY) {
-    takeUserScrollControl();
+    markUpwardScrollInput();
   }
   previousTouchY = currentTouchY ?? null;
 }, { passive: true });
@@ -221,17 +256,19 @@ document.addEventListener("keydown", (event) => {
     event.key === "ArrowUp" || event.key === "PageUp" || event.key === "Home" ||
     (event.key === " " && event.shiftKey)
   ) {
-    takeUserScrollControl();
+    markUpwardScrollInput();
   }
 });
 
 state.chatContainer.addEventListener("scroll", () => {
   const atBottom = isConversationAtBottom();
+  const inUpwardGrace =
+    atBottom && performance.now() - lastUpInputAt < UPWARD_GRACE_MS;
   state.scrollOwner = nextScrollOwner(state.scrollOwner, {
-    isAtBottom: atBottom,
-    hasUserIntent: hasUserScrollIntent || scrollbarPointerActive,
+    isAtBottom: inUpwardGrace ? false : atBottom,
+    hasUserIntent: inUpwardGrace || hasUserScrollIntent || scrollbarPointerActive,
   });
-  if (atBottom) { clearUserScrollIntent(); }
+  if (atBottom && !inUpwardGrace) { clearUserScrollIntent(); }
 
   if (shouldLoadOlderHistory({
     scrollTop: state.chatContainer.scrollTop,
