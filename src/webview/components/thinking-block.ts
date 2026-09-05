@@ -46,6 +46,8 @@ export class ThinkingBlock implements Component<ThinkingBlockProps> {
 
     // Wire toggle
     this.expandBtn.addEventListener("click", () => this.toggle());
+    const header = this.el.querySelector(".thinking-header")!;
+    header.addEventListener("click", () => this.toggle());
 
     // Set initial content via textContent (safe, no HTML parse)
     this.setContent(props.content);
@@ -67,26 +69,27 @@ export class ThinkingBlock implements Component<ThinkingBlockProps> {
 
   // ── internal ──────────────────────────────────────────
 
+  private hasContent = false;
+
+  // ── internal ──────────────────────────────────────────
+
   private setContent(content: string): void {
     this.contentEl.textContent = content;
+    this.hasContent = !!content;
     const lines = content ? content.split("\n").length : 0;
     this.lineCountEl.textContent = lines > 0 ? `(${lines} lines)` : "";
   }
 
   private updateDisplay(done?: boolean): void {
-    if (done) {
+    const finished = done === true;
+    if (finished) {
       this.spinnerEl.remove();
-      // Update expand button visibility based on overflow
-      const overflowing =
-        this.contentEl.scrollHeight > this.contentEl.clientHeight + 2;
-      if (this._collapsed) {
-        this.expandBtn.style.display = overflowing ? "" : "none";
-        this.expandBtn.textContent = "Show more";
-      } else {
-        this.expandBtn.style.display = "";
-        this.expandBtn.textContent = "Show less";
-      }
     }
+    // While streaming the live tail is shown directly, so the toggle is hidden;
+    // after finishing (or once expanded) it becomes the read/read-less control.
+    const showToggle = this.hasContent && (finished || !this._collapsed);
+    this.expandBtn.style.display = showToggle ? "" : "none";
+    this.expandBtn.textContent = this._collapsed ? "Show more" : "Show less";
   }
 
   private toggle(): void {
