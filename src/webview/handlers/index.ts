@@ -11,7 +11,10 @@ import {
   shortenPath, renderCodeBlockHTML,
 } from "../render/engine.js";
 import { restoreScrollAfterPrepend } from "../render/history-pagination.js";
-import { collapseExecutionProcesses } from "../render/execution-process.js";
+import {
+  collapseExecutionProcesses,
+  openExecutionProcessForElement,
+} from "../render/execution-process.js";
 import { isAllowedMarkdownLink } from "../render/markdown-inline.js";
 import { navigateAutocompleteSelection } from "../render/autocomplete-navigation.js";
 import {
@@ -3068,8 +3071,7 @@ export function handleRevealEntry(entryId: string, toolCallId: string, waitFrame
 
     if (!el) {return;}
 
-    const executionProcess = el.closest<HTMLDetailsElement>("details.execution-process");
-    if (executionProcess) { executionProcess.open = true; }
+    openExecutionProcessForElement(el);
 
     // Debounce repeated reveal requests: only the latest target keeps a
     // highlight, so a burst of revealEntry messages never causes strobing.

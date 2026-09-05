@@ -54,6 +54,11 @@ function createExecutionProcess(nodes: readonly HTMLElement[]): HTMLDetailsEleme
   return details;
 }
 
+export function openExecutionProcessForElement(element: Element): void {
+  const details = element.closest<HTMLDetailsElement>("details.execution-process");
+  if (details) { details.open = true; }
+}
+
 /** Group completed thinking and tool runs without touching assistant prose. */
 export function collapseExecutionProcesses(root: HTMLElement): void {
   extractThinkingBlocks(root);
