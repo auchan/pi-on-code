@@ -11,6 +11,7 @@ import { mergeInitialHistoryEvents } from "./history-event-sync.js";
 import { SessionCapabilitySnapshot } from "./capability-snapshot.js";
 import { piError } from "./logger.js";
 import { getWorkspaceCwd } from "./workspace-context.js";
+import { limitTabLabel } from "./tab-label.js";
 import type { PiService } from "./pi-service.js";
 import type { PiServiceEvent } from "./types.js";
 import {
@@ -860,8 +861,9 @@ export class PiWebviewPanel {
       return;
     }
 
-    const label = this._tabSummary ?? "Pi";
-    // Bullet prefix: ● busy, ○ idle — consistent with status bar
+    const label = limitTabLabel(this._tabSummary ?? "Pi");
+    // Bullet prefix: ● busy, ○ idle — consistent with status bar. The cap is
+    // applied before the prefix so streaming and idle tabs keep equal length.
     this.panel.title = (this._tabStreaming ? "\u25CF " : "\u25CB ") + label;
   }
 
