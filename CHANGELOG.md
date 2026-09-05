@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.12
+
+- Collapse finished Thinking and execution steps into single-fold rows with star fold icons, merging consecutive tool calls across empty assistant stubs, and add a per-turn Copy control that copies the full assistant reply without tool calls or thinking.
+- Stop auto-scroll from fighting the mouse wheel: an upward scroll latches the view until you scroll back to the live edge, and the transcript settles onto the true bottom after async rendering.
+- Rework Thinking blocks so they stay visible while streaming, show a live tail without an internal scrollbar, and become a scrollable reader only when expanded for reading.
+- Highlight user messages as distinct full-width cards with a theme-safe tinted background.
+- Cap session tab title length to keep tabs readable.
+
 ## 0.2.11
 
 - Rename Sessions inline from their action or context menu, preserving the full current title while editing.
