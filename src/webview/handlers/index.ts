@@ -266,6 +266,53 @@ export function handleAgentStart() {
     setSbDot("streaming");
   }
 
+function assistantMessageText(message: HTMLElement): string {
+  const content = message.querySelector<HTMLElement>(".message-content");
+  if (!content) { return ""; }
+  const raw = content.getAttribute("data-raw");
+  if (raw?.trim()) { return raw.trim(); }
+  // Fall back to the rendered prose without thinking or execution content.
+  const clone = content.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll(".thinking-block, .tool-block, .bash-execution, .bash-block").forEach((node) => node.remove());
+  return (clone.textContent || "").replace(/\s+$/g, "").trim();
+}
+
+function updateLastAssistantCopyButton(root: HTMLElement): void {
+  // Clear any stale buttons first.
+  root.querySelectorAll(".assistant-copy-btn").forEach((button) => button.remove());
+
+  // Every completed user turn keeps a copy control below its final assistant
+  // message, so each turn's answer can be copied independently. A turn group
+  // is the run of assistant messages that follows a user message (a leading
+  // run without a user message is its own group too).
+  const groups: HTMLElement[][] = [];
+  let current: HTMLElement[] = [];
+  const children = Array.from(root.children as HTMLCollectionOf<HTMLElement>);
+  for (const child of children) {
+    if (!child.classList.contains("message")) { continue; }
+    if (child.classList.contains("user")) {
+      groups.push(current);
+      current = [];
+    } else if (child.classList.contains("assistant")) {
+      current.push(child);
+    }
+  }
+  groups.push(current);
+
+  for (const turnAssistants of groups) {
+    if (turnAssistants.length === 0) { continue; }
+    const texts = turnAssistants.map(assistantMessageText).filter(Boolean);
+    if (texts.length === 0) { continue; }
+    const copyButton = document.createElement("button");
+    copyButton.type = "button";
+    copyButton.className = "assistant-copy-btn";
+    copyButton.textContent = "Copy";
+    copyButton.setAttribute("aria-label", "Copy assistant response");
+    (copyButton as HTMLButtonElement & { _copyText?: string })._copyText = texts.join("\n\n");
+    turnAssistants[turnAssistants.length - 1]!.appendChild(copyButton);
+  }
+}
+
 export function handleAgentEnd() {
     setSbDot("idle");
     // Stop thinking spinner (safety net) — use component API if available
@@ -353,6 +400,7 @@ export function handleAgentEnd() {
     });
 
     if (!state._inBatch) { collapseExecutionProcesses(state.chatContainer); }
+    updateLastAssistantCopyButton(state.chatContainer);
     updateStreamingState();
   }
 
@@ -635,16 +683,7 @@ export function handleAssistantEnd(data: any) {
         }
       }
 
-      const copyText = mc?.getAttribute("data-raw");
-      if (copyText?.trim() && !state.currentAssistantEl.querySelector(".assistant-copy-btn")) {
-        const copyButton = document.createElement("button");
-        copyButton.type = "button";
-        copyButton.className = "assistant-copy-btn";
-        copyButton.textContent = "Copy";
-        copyButton.setAttribute("aria-label", "Copy assistant response");
-        (copyButton as HTMLButtonElement & { _copyText?: string })._copyText = copyText;
-        state.currentAssistantEl.appendChild(copyButton);
-      }
+      // Copy button is managed per-turn by the agent-end handler, not here.
 
       // Handle error/abort stop reasons (like TUI)
       if (data && data.stopReason) {
@@ -954,6 +993,7 @@ export function handleBatchEnd(data: any) {
     state.historyHasMore = data?.hasMoreHistory === true;
     document.body.classList.remove("no-animate");
     collapseExecutionProcesses(state.chatContainer);
+    updateLastAssistantCopyButton(state.chatContainer);
     // Force-scroll to bottom after the newest page is restored. Triple-rAF
     // lets markdown, code blocks, and syntax highlighting finish layout.
     requestAnimationFrame(function () {
@@ -1096,6 +1136,7 @@ export function handleHistoryPageEnd(data: any) {
     document.body.classList.remove("no-animate");
     historyPrependContext = null;
     collapseExecutionProcesses(context.root);
+    updateLastAssistantCopyButton(context.root);
 
     // Restore the anchor synchronously so consecutive history pages accumulate
     // their offsets correctly. Deferring to a double-RAF made every page save

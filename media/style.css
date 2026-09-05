@@ -2092,7 +2092,7 @@ html.pi-viewport-recovering #pi-web-app {
   width: 100%;
   max-width: none;
   align-self: stretch;
-  padding: 8px 0;
+  padding: 6px 0;
   border-top: 1px solid var(--pi-line-soft);
   animation: pi-message-in 120ms ease-out;
 }
@@ -2970,7 +2970,7 @@ html.pi-viewport-recovering #pi-web-app {
 }
 
 .execution-process-summary {
-  padding: 0 0 2px;
+  padding: 6px 0;
   color: var(--pi-faint);
   cursor: pointer;
   font-size: 11px;
@@ -2998,10 +2998,6 @@ html.pi-viewport-recovering #pi-web-app {
 .execution-process-summary:hover,
 .execution-process-summary:focus-visible {
   color: var(--pi-text);
-}
-
-.execution-process[open] > .execution-process-content {
-  padding-top: 6px;
 }
 
 .execution-process-content {

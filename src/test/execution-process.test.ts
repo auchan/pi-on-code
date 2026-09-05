@@ -109,6 +109,14 @@ function assistant(thinking: MockElement, prose: string): MockElement {
   return message;
 }
 
+function assistantWithProse(prose: string): MockElement {
+  const message = element("div", "message assistant");
+  const content = element("div", "message-content");
+  content.append(element("p", "", prose));
+  message.append(content);
+  return message;
+}
+
 function withMockDocument(run: () => void): void {
   const original = Object.getOwnPropertyDescriptor(globalThis, "document");
   Object.defineProperty(globalThis, "document", {
@@ -175,6 +183,33 @@ suite("Execution process grouping", () => {
 
       openExecutionProcessForElement(toolOne as unknown as Element);
       assert.strictEqual(secondProcess.open, true, "revealing a nested tool must expand its process");
+    });
+  });
+
+  test("merges tool calls across empty assistant stubs into a single run", () => {
+    withMockDocument(() => {
+      const root = element("main");
+      const user = element("div", "message user", "request");
+      const toolOne = element("div", "tool-block", "read");
+      const stubOne = element("div", "message assistant");
+      stubOne.append(element("div", "message-content"));
+      const toolTwo = element("div", "bash-execution", "git status");
+      const stubTwo = element("div", "message assistant");
+      stubTwo.append(element("div", "message-content"));
+      const toolThree = element("div", "tool-block", "write");
+      const finalAnswer = assistantWithProse("done");
+      root.append(user, toolOne, stubOne, toolTwo, stubTwo, toolThree, finalAnswer);
+
+      collapseExecutionProcesses(root as unknown as HTMLElement);
+
+      assert.strictEqual(root.children.length, 3, "empty stubs are removed");
+      assert.strictEqual(root.children[0], user);
+      const process = root.children[1];
+      assert.strictEqual(process.tagName, "details");
+      assert.strictEqual(process.className, "execution-process");
+      assert.strictEqual(process.children[0].textContent, "Investigated · 3 Exec");
+      assert.deepStrictEqual(process.children[1].children, [toolOne, toolTwo, toolThree]);
+      assert.strictEqual(root.children[2], finalAnswer);
     });
   });
 

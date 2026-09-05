@@ -28,6 +28,19 @@ function isExecutionProcessElement(element: Element): boolean {
     || element.classList.contains("bash-block");
 }
 
+function isEmptyAssistantStub(message: HTMLElement): boolean {
+  // A model response that only emitted a tool call leaves an empty assistant
+  // message (hidden by CSS). It carries no visible prose, so it must not break
+  // a contiguous tool run when grouping execution processes.
+  if (!message.classList.contains("message") || !message.classList.contains("assistant")) {
+    return false;
+  }
+  if (message.childElementCount !== 1) { return false; }
+  const content = message.children[0];
+  if (!content.classList.contains("message-content")) { return false; }
+  return !content.textContent?.trim() && content.childElementCount === 0;
+}
+
 function extractThinkingBlocks(root: HTMLElement): void {
   root.querySelectorAll<HTMLElement>(".message.assistant > .message-content > .thinking-block").forEach((thinking) => {
     const message = thinking.closest<HTMLElement>(".message.assistant");
@@ -77,6 +90,11 @@ export function openExecutionProcessForElement(element: Element): void {
 /** Group completed thinking and tool runs without touching assistant prose. */
 export function collapseExecutionProcesses(root: HTMLElement): void {
   extractThinkingBlocks(root);
+  // Drop empty assistant stubs (tool-only responses) so consecutive tool calls
+  // merge into a single execution run instead of several adjacent groups.
+  Array.from(root.children as HTMLCollectionOf<HTMLElement>).forEach((child) => {
+    if (isEmptyAssistantStub(child)) { child.remove(); }
+  });
   const children = Array.from(root.children) as HTMLElement[];
   const kinds = children.map<ExecutionProcessItemKind>((element) =>
     isExecutionProcessElement(element) ? "process" : "content",
