@@ -1128,7 +1128,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   ): Promise<void> {
     const newSw = createSessionWindow(context, { path: forkedPath }, false, cwd);
     setActiveSession(newSw);
-    void newSw.webviewPanel.show(chatShowColumn());
+    void newSw.webviewPanel.show(chatShowColumn("chatPanelLocation"));
     sessionTreeProvider?.refresh();
 
     await initSessionInBackground(context, newSw, { openPath: forkedPath });
@@ -1374,7 +1374,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           title: summary?.name ?? summary?.firstMessage,
         }, false, summary?.cwd ?? getWorkspaceCwd());
         setActiveSession(sw);
-        await sw.webviewPanel.show(chatShowColumn());
+        await sw.webviewPanel.show(chatShowColumn("chatPanelLocation"));
         setSessionResultUnread(sw, false);
         sessionTreeProvider?.refresh();
         void initSessionInBackground(context, sw, { openPath: resolved });
@@ -1947,11 +1947,10 @@ async function doUpdatePackage(source: string): Promise<void> {
 
 // ── Add a new session window ──────────────────────────
 
-/** Column for newly opened chats: active group in panel mode, otherwise the
- *  historical right-side split (ViewColumn.Two is the panel default). */
-function chatShowColumn(): vscode.ViewColumn | undefined {
+/** Column for a chat opened under the given location setting key. */
+function chatShowColumn(key: string): vscode.ViewColumn | undefined {
   const location = parseChatPanelLocation(
-    vscode.workspace.getConfiguration("pi-on-code").get("chatPanelLocation"),
+    vscode.workspace.getConfiguration("pi-on-code").get(key),
   );
   return location === "panel" ? vscode.ViewColumn.Active : undefined;
 }
@@ -1972,7 +1971,7 @@ function addSession(context: vscode.ExtensionContext, cwd = getWorkspaceCwd()): 
     void saveOpenSessionPaths();
   };
   setActiveSession(sw);
-  void sw.webviewPanel.show(chatShowColumn());
+  void sw.webviewPanel.show(chatShowColumn("newChatPanelLocation"));
   void initSessionInBackground(context, sw, { fresh: true });
 }
 

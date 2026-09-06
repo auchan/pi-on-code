@@ -18,7 +18,7 @@ suite("Chat panel location", () => {
     assert.strictEqual(parseChatPanelLocation("splitPanel"), "splitPanel");
   });
 
-  test("publishes a matching configuration property", () => {
+  test("publishes new (panel) and resume/fork (splitPanel) properties", () => {
     const manifest = JSON.parse(
       readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
     ) as {
@@ -32,24 +32,24 @@ suite("Chat panel location", () => {
         };
       };
     };
-    const property = manifest.contributes.configuration.properties["pi-on-code.chatPanelLocation"];
-    assert.ok(property, "pi-on-code.chatPanelLocation property is missing");
-    assert.strictEqual(property.default, "splitPanel");
-    assert.deepStrictEqual(property.enum, ["panel", "splitPanel"]);
-    assert.strictEqual(property.enumDescriptions?.length, 2);
+    const newProp = manifest.contributes.configuration.properties["pi-on-code.newChatPanelLocation"];
+    const resumeProp = manifest.contributes.configuration.properties["pi-on-code.chatPanelLocation"];
+    assert.ok(newProp, "pi-on-code.newChatPanelLocation property is missing");
+    assert.strictEqual(newProp.default, "panel");
+    assert.deepStrictEqual(newProp.enum, ["panel", "splitPanel"]);
+    assert.ok(resumeProp, "pi-on-code.chatPanelLocation property is missing");
+    assert.strictEqual(resumeProp.default, "splitPanel");
+    assert.deepStrictEqual(resumeProp.enum, ["panel", "splitPanel"]);
   });
 
-  test("routes new, resumed, and forked chats through the shared column helper", () => {
+  test("routes new chats through newChatPanelLocation and resumes/forks through chatPanelLocation", () => {
     const extension = readFileSync(
       new URL("../../src/extension.ts", import.meta.url),
       "utf8",
     );
-    assert.match(extension, /function chatShowColumn\(\)/);
-    assert.match(extension, /parseChatPanelLocation\(/);
-    assert.match(extension, /chatPanelLocation/);
-    assert.match(extension, /sw\.webviewPanel\.show\(chatShowColumn\(\)\)/);
-    assert.match(extension, /newSw\.webviewPanel\.show\(chatShowColumn\(\)\)/);
-    // Resume path also follows the setting.
-    assert.match(extension, /await sw\.webviewPanel\.show\(chatShowColumn\(\)\)/);
+    assert.match(extension, /function chatShowColumn\(key: string\)/);
+    assert.match(extension, /sw\.webviewPanel\.show\(chatShowColumn\("newChatPanelLocation"\)\)/);
+    assert.match(extension, /newSw\.webviewPanel\.show\(chatShowColumn\("chatPanelLocation"\)\)/);
+    assert.match(extension, /await sw\.webviewPanel\.show\(chatShowColumn\("chatPanelLocation"\)\)/);
   });
 });
