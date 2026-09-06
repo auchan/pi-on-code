@@ -783,6 +783,12 @@ export class PiWebviewPanel {
             }
             break;
 
+          case "picker-confirm-result":
+            if (typeof message.requestId === "string" && typeof message.key === "string") {
+              this.piService.resolvePickerConfirm(message.requestId, message.key);
+            }
+            break;
+
           // Request settings state (#2, #8)
           case "open-session":
             if (typeof message.sessionId === "string") {

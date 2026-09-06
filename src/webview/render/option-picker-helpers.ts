@@ -81,11 +81,11 @@ export function resolvePickerPlacement(
   const maxTop = Math.max(margin, viewport.height - size.height - margin);
 
   let x = anchor.left;
-  let y = anchor.bottom + 4;
-  if (align === "topLeft") { y = anchor.top - size.height - 4; }
+  let y = anchor.bottom + 8;
+  if (align === "topLeft") { y = anchor.top - size.height - 8; }
   if (align === "topRight") {
     x = anchor.right - size.width;
-    y = anchor.top - size.height - 4;
+    y = anchor.top - size.height - 8;
   }
   if (align === "bottomRight") { x = anchor.right - size.width; }
 

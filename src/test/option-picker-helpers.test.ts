@@ -41,7 +41,7 @@ suite("Option picker helpers", () => {
 
     const topLeft = resolvePickerPlacement(anchor, "topLeft", size, viewport);
     assert.strictEqual(topLeft.left, 600);
-    assert.strictEqual(topLeft.top, 396);
+    assert.strictEqual(topLeft.top, 392);
 
     // A huge anchor near the bottom-right corner keeps both axes on screen.
     const corner = resolvePickerPlacement(

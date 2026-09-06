@@ -2812,10 +2812,7 @@ export class PiService {
     if (kind === "thinking") {
       await this.setThinkingLevel(key);
       if (key !== this.getDefaultThinking()) {
-        const save = await vscode.window.showQuickPick(
-          [{ label: "\u2605 Save as default", description: "Use this thinking level for future sessions" }],
-          { placeHolder: `Use "${key}" thinking as the default?` },
-        );
+        const save = await this.askSaveAsDefault(`Use "${key}" thinking as the default?`);
         if (save) { this.saveDefaultThinking(); }
       }
       return;
@@ -2829,13 +2826,47 @@ export class PiService {
     const defModel = this.getDefaultModel();
     const isDefault = Boolean(defModel && provider === defModel.provider && modelId === defModel.id);
     if (!isDefault) {
-      const save = await vscode.window.showQuickPick(
-        [{ label: "\u2605 Save as default", description: "Use this model for future sessions" }],
-        { placeHolder: "Save this model as default?" },
-      );
+      const save = await this.askSaveAsDefault("Save this model as default?");
       if (save) { this.saveDefaultModel(); }
     }
   }
+
+  /** Ask the Webview (via the custom picker) whether to save the selection as default. */
+  private async askSaveAsDefault(prompt: string): Promise<boolean> {
+    const requestId = `confirm-${++this.pickerConfirmSequence}-${Date.now()}`;
+    return new Promise<boolean>((resolve) => {
+      const timer = setTimeout(() => {
+        this.pickerConfirmResolvers.delete(requestId);
+        resolve(false);
+      }, 60_000);
+      this.pickerConfirmResolvers.set(requestId, (save) => {
+        clearTimeout(timer);
+        this.pickerConfirmResolvers.delete(requestId);
+        resolve(save);
+      });
+      this.emit({
+        type: "picker-confirm",
+        data: {
+          requestId,
+          prompt,
+          align: "topRight",
+          options: [
+            { key: "save", label: "★ Save as default", description: prompt },
+            { key: "skip", label: "Not now" },
+          ],
+        },
+      });
+    });
+  }
+
+  /** Resolve a pending picker confirm (called from the Webview result message). */
+  resolvePickerConfirm(requestId: string, key: string): void {
+    const pending = this.pickerConfirmResolvers.get(requestId);
+    if (pending) { pending(key === "save"); }
+  }
+
+  private pickerConfirmResolvers = new Map<string, (save: boolean) => void>();
+  private pickerConfirmSequence = 0;
 
   emitSettings(): void {
     this.emit({

@@ -47,6 +47,7 @@ interface PendingPickerRequest {
 }
 
 const pendingPickerRequests: Record<string, PendingPickerRequest> = {};
+let lastPickerAnchor: PendingPickerRequest["anchor"] | null = null;
 
 function elementAnchorRect(el: HTMLElement): PendingPickerRequest["anchor"] {
   const rect = el.getBoundingClientRect();
@@ -72,6 +73,7 @@ function handlePickerOptions(data: any): void {
   const pending = pendingPickerRequests[data.requestId];
   delete pendingPickerRequests[data.requestId];
   if (!pending) { return; }
+  lastPickerAnchor = pending.anchor;
   void openStatusPicker({
     title: typeof data.title === "string" ? data.title : undefined,
     placeholder: typeof data.placeholder === "string" ? data.placeholder : undefined,
@@ -82,6 +84,33 @@ function handlePickerOptions(data: any): void {
     if (result.key !== null) {
       window.__vscode.postMessage({ type: "applyPickerOption", kind: pending.kind, key: result.key });
     }
+  });
+}
+
+function handlePickerConfirm(data: any): void {
+  if (!data || typeof data.requestId !== "string") { return; }
+  const options: Array<{ key: string; label: string; description?: string }> = Array.isArray(data.options)
+    ? data.options.filter((o: unknown) => o && typeof o === "object" && typeof (o as { key?: unknown }).key === "string" && typeof (o as { label?: unknown }).label === "string")
+    : [];
+  const anchor = lastPickerAnchor ?? {
+    top: window.innerHeight - 8,
+    left: 8,
+    right: window.innerWidth - 8,
+    bottom: window.innerHeight - 8,
+    width: Math.max(0, window.innerWidth - 16),
+    height: 0,
+  };
+  void openStatusPicker({
+    title: typeof data.prompt === "string" ? data.prompt : undefined,
+    items: options.map((o) => ({ key: o.key, label: o.label, description: o.description })),
+    anchor,
+    align: data.align === "topLeft" || data.align === "bottomLeft" || data.align === "bottomRight" ? data.align : "topRight",
+  }).then((result) => {
+    window.__vscode.postMessage({
+      type: "picker-confirm-result",
+      requestId: data.requestId,
+      key: result.key ?? "skip",
+    });
   });
 }
 
@@ -261,6 +290,7 @@ function handleExtensionMessage(msg: any): void {
       case "scoped-models-update": handleScopedModelsUpdate(msg.data); break;
       case "settings-update":    handleSettingsUpdate(msg.data); break;
       case "picker-options":    handlePickerOptions(msg.data); break;
+      case "picker-confirm":    handlePickerConfirm(msg.data); break;
       case "revealEntry":        handleRevealEntry(msg.entryId, msg.toolCallId); break;
 
       // Errors

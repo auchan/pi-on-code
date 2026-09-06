@@ -3249,14 +3249,14 @@ html.pi-viewport-recovering #pi-web-app {
 
 .option-picker {
   position: fixed;
+  z-index: 300;
   display: flex;
   flex-direction: column;
   max-height: min(60vh, 400px);
   overflow: hidden;
   border: 1px solid var(--pi-line);
   border-radius: 6px;
-  background: var(--vscode-editorWidget-background, var(--pi-surface));
-  background: color-mix(in srgb, var(--pi-surface) 97%, transparent);
+  background: var(--vscode-editorWidget-background, var(--pi-surface-raised));
   box-shadow: 0 8px 24px rgb(0 0 0 / 32%);
   color: var(--pi-text);
 }
