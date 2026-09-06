@@ -784,10 +784,16 @@ export function handleAssistantStart(data: any) {
 
     // Create the assistant container eagerly before any content arrives
     state.currentAssistantEl = createMessageEl("assistant");
-    // #9: Entry ID for scroll-to
-    if (data.entryId) {
-      state.currentAssistantEl.id = "entry-" + data.entryId;
-      state.currentAssistantEl.setAttribute("data-entry-id", data.entryId);
+    // #9: Entry ID for scroll-to. Fresh live messages may not have their
+    // canonical entry id yet, so fall back to the SDK message id; the host
+    // replaces it after the entry sync.
+    const assistantEntryValue =
+      typeof data.entryId === "string" ? data.entryId
+      : typeof data.messageId === "string" ? data.messageId
+      : "";
+    if (assistantEntryValue) {
+      state.currentAssistantEl.id = "entry-" + assistantEntryValue;
+      state.currentAssistantEl.setAttribute("data-entry-id", assistantEntryValue);
     }
     state.currentThinkingEl = null;
     state._streamPrevTokens = [];  // Reset token tracker for new message
@@ -2750,8 +2756,53 @@ export function renderInlineCustomMessage(data: any) {
     scrollToBottom();
   }
 
+function renderForkDivider(sourceName: string, details: { sourceId?: unknown } | null): void {
+  hideWelcome();
+  const row = document.createElement("div");
+  row.className = "fork-divider";
+  const ruleLeft = document.createElement("span");
+  ruleLeft.className = "fork-divider-rule";
+  const icon = document.createElement("span");
+  icon.className = "fork-divider-icon";
+  icon.innerHTML = html`<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="12" r="2"/><circle cx="4" cy="4" r="2"/><circle cx="12" cy="4" r="2"/><path d="M12 6v1.333c0 .4-.4.667-.8.667H4.8c-.4 0-.8-.267-.8-.667V6"/><path d="M8 8v2"/></svg>`;
+  const text = document.createElement("span");
+  text.className = "fork-divider-text";
+  if (sourceName) {
+    const sourceId = details?.sourceId;
+    if (typeof sourceId === "string" && sourceId) {
+      const link = document.createElement("button");
+      link.type = "button";
+      link.className = "fork-divider-link";
+      link.textContent = sourceName;
+      link.title = "Open the source session";
+      link.addEventListener("click", () => {
+        window.__vscode.postMessage({ type: "open-session", sessionId: sourceId });
+      });
+      text.append("continued from ", link);
+    } else {
+      text.textContent = `continued from ${sourceName}`;
+    }
+  } else {
+    text.textContent = "continued from another session";
+  }
+  const ruleRight = document.createElement("span");
+  ruleRight.className = "fork-divider-rule";
+  row.append(ruleLeft, icon, text, ruleRight);
+  state.chatContainer.appendChild(row);
+  scrollToBottom();
+}
+
 export function handleCustomMessage(data: any) {
     var customType = data.customType || "custom";
+
+    // Fork divider rendered in the transcript at the fork point.
+    if (customType === "fork-info") {
+      renderForkDivider(
+        String(data.content ?? ""),
+        data && typeof data === "object" ? (data as { details?: { sourceId?: unknown } | null }).details ?? null : null,
+      );
+      return;
+    }
 
     // ── display: true → inline in conversation stream ──────
     if (data.display === true) {

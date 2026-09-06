@@ -427,6 +427,7 @@ export class PiService {
   // User message history for the resend/reuse feature (#2)
   private _userMessages: Array<{ id: string; text: string; timestamp?: number }> = [];
   private pendingLiveUserMessageIds: string[] = [];
+
   private liveUserEntryAliases = new Map<string, string>();
   private liveEntryIdMapJson = "";
 
@@ -1446,6 +1447,18 @@ export class PiService {
           this.emit({ type: "bash-start", data: { toolCallId: bashEntryId, command: msg.command ?? "", entryId: entry.id } });
           this.emit({ type: "bash-end", data: { toolCallId: bashEntryId, command: msg.command ?? "", exitCode: msg.exitCode, cancelled: msg.cancelled, output: msg.output ?? "", isError: msg.exitCode !== 0 && msg.exitCode !== null, entryId: entry.id } });
         }
+      } else if (entry.type === "custom_message") {
+        this.emit({
+          type: "custom-message",
+          data: {
+            customType: entry.customType ?? "custom",
+            content: entry.content,
+            display: entry.display === true,
+            details: entry.details,
+            timestamp: this._toTimestamp(entry.timestamp),
+            entryId: entry.id,
+          },
+        });
       } else if (entry.type === "compaction") {
         this.emit({
           type: "compaction-summary-message",

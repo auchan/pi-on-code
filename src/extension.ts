@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { PiService } from "./pi-service.js";
 import { PiWebviewPanel } from "./webview-panel.js";
 import { PiPackageService, type ManagedCapability } from "./pi-package-service.js";
@@ -803,7 +805,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             vscode.window.showErrorMessage("Cannot fork: session has no entries.");
             return;
           }
-          await vscode.commands.executeCommand("pi-on-code.forkSession", session.id, leafId);
+          await vscode.commands.executeCommand(
+            "pi-on-code.forkSession",
+            session.id,
+            leafId,
+            forkSessionTitle(cleanSessionTitle(
+              session.piService.sessionName ?? session.webviewPanel.summary ?? session.label,
+            )),
+          );
         } else if (target.kind === "past" && target.path) {
           await vscode.commands.executeCommand("pi-on-code.forkSession", target.path);
         }
@@ -1014,6 +1023,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     entryId: string,
     forkLabel?: string,
     content?: string,
+    sourceName?: string,
   ): Promise<void> {
     const srcSw = sessions.find((s) => s.id === sessionId);
     if (!srcSw || !srcSw.piService.sessionManagerInstance) {
@@ -1044,12 +1054,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const isUserMsg = entry.type === "message" && entry.message?.role === "user";
       const isAssistantMsg = entry.type === "message" && entry.message?.role === "assistant";
       const isCustomMsg = entry.type === "custom_message";
-      if (!isUserMsg && !isAssistantMsg && !isCustomMsg) {
+      // session_info entries are SDK metadata leaves (renames / branch marks);
+      // forking at the leaf is still a fork of the whole conversation.
+      const isSessionInfo = entry.type === "session_info";
+      if (!isUserMsg && !isAssistantMsg && !isCustomMsg && !isSessionInfo) {
         throw new Error("Fork only works on user, assistant, or custom messages. Selected entry type: " + (entry.type ?? "unknown"));
       }
 
       forkedPath = srcSm.createBranchedSession(entry.id ?? entryId);
       if (!forkedPath) { throw new Error("Failed to create forked session file."); }
+
+      // Persist a fork divider at the fork leaf so reloads render it in the
+      // same file position (SDK appendCustomMessageEntry keeps the natural
+      // line order; session_info is reserved for renames).
+      if (sourceName) {
+        const appender = srcSm as {
+          appendCustomMessageEntry?: (type: string, content: unknown, display: boolean, details?: unknown) => string | undefined;
+        };
+        if (typeof appender.appendCustomMessageEntry === "function") {
+          appender.appendCustomMessageEntry("fork-info", sourceName, true, {
+            sourceId: readSessionId(sourcePath) ?? null,
+          });
+        }
+      }
     } finally {
       tempPi.dispose();
     }
@@ -1143,7 +1170,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
       try {
         if (cmdArgs.length >= 2) {
-          await doForkFromOpenEntry(cmdArgs[0] as string, cmdArgs[1] as string);
+          await doForkFromOpenEntry(
+            cmdArgs[0] as string,
+            cmdArgs[1] as string,
+            typeof cmdArgs[2] === "string" ? cmdArgs[2] : undefined,
+          );
         } else {
           await doForkFromPastSession(cmdArgs[0] as string);
         }
@@ -1232,6 +1263,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             entryId,
             forkSessionTitle(title),
             typeof content === "string" ? content : undefined,
+            title,
           );
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
@@ -1347,6 +1379,55 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       } catch (e: any) {
         vscode.window.showErrorMessage(`Resume failed: ${e.message ?? e}`);
       }
+    }),
+  );
+
+  // ── Open a session by its file session id (used by the fork divider link) ──
+  const findSessionFilePathById = (sessionId: string): string | undefined => {
+    const openSession = sessions.find(
+      (candidate) => candidate.piService.sessionIdValue === sessionId,
+    );
+    const openPath = openSession
+      ? openSession.piService.sessionFilePath ?? openSession.restoringPath
+      : undefined;
+    if (openPath) { return openPath; }
+    const configuredDir = vscode.workspace
+      .getConfiguration("pi-on-code")
+      .get<string>("sessionDir")
+      ?.trim();
+    const root = configuredDir
+      || path.join(os.homedir(), ".pi", "agent", "sessions");
+    const matches: string[] = [];
+    const walk = (directory: string): void => {
+      let entries: fs.Dirent[];
+      try { entries = fs.readdirSync(directory, { withFileTypes: true }); } catch { return; }
+      for (const entry of entries) {
+        const full = path.join(directory, entry.name);
+        if (entry.isDirectory()) { walk(full); continue; }
+        if (entry.isFile() && entry.name.endsWith(".jsonl") && entry.name.endsWith(`_${sessionId}.jsonl`)) {
+          matches.push(full);
+        }
+      }
+    };
+    walk(root);
+    return matches[0];
+  };
+  context.subscriptions.push(
+    vscode.commands.registerCommand("pi-on-code.resumeSessionById", async (sessionId?: unknown) => {
+      if (typeof sessionId !== "string" || !sessionId) { return; }
+      const openSession = sessions.find(
+        (candidate) => candidate.piService.sessionIdValue === sessionId,
+      );
+      if (openSession) {
+        await vscode.commands.executeCommand("pi-on-code.focusSession", openSession.id);
+        return;
+      }
+      const filePath = findSessionFilePathById(sessionId);
+      if (!filePath) {
+        vscode.window.showErrorMessage("Source session file not found.");
+        return;
+      }
+      await vscode.commands.executeCommand("pi-on-code.resumePastSession", filePath);
     }),
   );
 

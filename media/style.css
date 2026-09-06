@@ -2943,6 +2943,62 @@ html.pi-viewport-recovering #pi-web-app {
   color: var(--pi-text);
 }
 
+.fork-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 8px;
+  color: var(--pi-muted);
+}
+
+.fork-divider-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--pi-line);
+}
+
+.fork-divider-icon {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--pi-hover);
+  color: var(--pi-lavender);
+}
+
+.fork-divider-icon svg {
+  display: block;
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fork-divider-text {
+  color: var(--pi-faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.fork-divider-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pi-lavender);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.fork-divider-link:hover {
+  color: var(--pi-strong);
+}
+
 .message.assistant:hover .assistant-turn-actions,
 .assistant-turn-actions:focus-within {
   opacity: 1;
