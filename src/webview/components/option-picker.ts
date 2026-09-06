@@ -1,5 +1,6 @@
 import {
   fuzzyFilterOptions,
+  orderItemsByRecent,
   resolvePickerPlacement,
   type PickerAlign,
   type PickerAnchorRect,
@@ -14,6 +15,13 @@ export interface StatusPickerConfig {
   items: readonly PickerOptionItem[];
   anchor: PickerAnchorRect;
   align: PickerAlign;
+  /** Optional recency memory: recent keys surface first and are updated on pick. */
+  memory?: StatusPickerMemory;
+}
+
+export interface StatusPickerMemory {
+  list: () => readonly string[];
+  record: (key: string) => void;
 }
 
 export interface StatusPickerResult {
@@ -41,6 +49,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: strin
 
 let openDom: PickerDom | null = null;
 let resolveCurrent: ((result: StatusPickerResult) => void) | null = null;
+let activeMemory: StatusPickerMemory | null = null;
 let currentItems: PickerOptionItem[] = [];
 let activeItems: PickerOptionItem[] = [];
 let selectedIndex = 0;
@@ -128,8 +137,10 @@ function finish(key: string | null): void {
   openDom = null;
   if (!dom) { return; }
   dom.host.remove();
+  if (key !== null) { activeMemory?.record(key); }
   const resolve = resolveCurrent;
   resolveCurrent = null;
+  activeMemory = null;
   resolve?.({ key });
 }
 
@@ -162,7 +173,10 @@ export function openStatusPicker(config: StatusPickerConfig): Promise<StatusPick
   host.append(backdrop, panel);
   document.body.appendChild(host);
   openDom = { host, panel, input, list, empty };
-  currentItems = [...config.items];
+  activeMemory = config.memory ?? null;
+  currentItems = activeMemory
+    ? orderItemsByRecent([...config.items], activeMemory.list())
+    : [...config.items];
   selectedIndex = 0;
 
   input.addEventListener("input", () => renderList(input.value));

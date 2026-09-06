@@ -95,6 +95,18 @@ export function resolvePickerPlacement(
   };
 }
 
+/** Keep keys from `recent` first (in that order), then the rest unchanged. */
+export function orderItemsByRecent(
+  items: readonly PickerOptionItem[],
+  recent: readonly string[],
+): PickerOptionItem[] {
+  const recentSet = new Set(recent);
+  const recentItems = recent
+    .map((key) => items.find((item) => item.key === key))
+    .filter((item): item is PickerOptionItem => Boolean(item));
+  return [...recentItems, ...items.filter((item) => !recentSet.has(item.key))];
+}
+
 const THINKING_LEVELS: ReadonlyArray<{ key: string; description: string }> = [
   { key: "off", description: "No thinking" },
   { key: "minimal", description: "Minimal thinking" },

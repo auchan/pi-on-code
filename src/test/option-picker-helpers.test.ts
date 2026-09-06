@@ -5,6 +5,7 @@ import {
   buildEffortOptions,
   buildThinkingOptions,
   fuzzyFilterOptions,
+  orderItemsByRecent,
   resolvePickerPlacement,
   STATUS_PICKER_META,
   type PickerOptionItem,
@@ -28,6 +29,18 @@ suite("Option picker helpers", () => {
     );
     assert.strictEqual(fuzzyFilterOptions(items, "").length, 3);
     assert.strictEqual(fuzzyFilterOptions(items, "zzz").length, 0);
+  });
+
+  test("orders recently selected keys first", () => {
+    assert.deepStrictEqual(
+      orderItemsByRecent(items, ["deepseek", "claude"]).map((item) => item.key),
+      ["deepseek", "claude", "gpt"],
+    );
+    // Missing recent keys are ignored.
+    assert.deepStrictEqual(
+      orderItemsByRecent(items, ["gpt", "nope"]).map((item) => item.key),
+      ["gpt", "claude", "deepseek"],
+    );
   });
 
   test("clamps four-corner placement inside the viewport", () => {

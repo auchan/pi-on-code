@@ -49,6 +49,21 @@ interface PendingPickerRequest {
 const pendingPickerRequests: Record<string, PendingPickerRequest> = {};
 let lastPickerAnchor: PendingPickerRequest["anchor"] | null = null;
 
+const MODEL_RECENT_KEY = "pi.modelRecent.v1";
+function getModelRecentKeys(): string[] {
+  try {
+    const raw = localStorage.getItem(MODEL_RECENT_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((key): key is string => typeof key === "string") : [];
+  } catch { return []; }
+}
+function recordModelRecentKey(key: string): void {
+  try {
+    const next = [key, ...getModelRecentKeys().filter((candidate) => candidate !== key)].slice(0, 8);
+    localStorage.setItem(MODEL_RECENT_KEY, JSON.stringify(next));
+  } catch { /* storage unavailable */ }
+}
+
 function elementAnchorRect(el: HTMLElement): PendingPickerRequest["anchor"] {
   const rect = el.getBoundingClientRect();
   return {
@@ -80,6 +95,9 @@ function handlePickerOptions(data: any): void {
     items: data.items,
     anchor: pending.anchor,
     align: data.align === "topLeft" || data.align === "bottomLeft" || data.align === "bottomRight" ? data.align : "topRight",
+    memory: pending.kind === "model"
+      ? { list: getModelRecentKeys, record: recordModelRecentKey }
+      : undefined,
   }).then((result) => {
     if (result.key !== null) {
       window.__vscode.postMessage({ type: "applyPickerOption", kind: pending.kind, key: result.key });
