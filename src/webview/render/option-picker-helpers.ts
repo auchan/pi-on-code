@@ -110,10 +110,11 @@ export function orderItemsByRecent(
 const THINKING_LEVELS: ReadonlyArray<{ key: string; description: string }> = [
   { key: "off", description: "No thinking" },
   { key: "minimal", description: "Minimal thinking" },
-  { key: "low", description: "Brief thinking" },
-  { key: "medium", description: "Balanced thinking" },
-  { key: "high", description: "Extended thinking" },
-  { key: "xhigh", description: "Maximum thinking" },
+  { key: "low", description: "Light thinking" },
+  { key: "medium", description: "Moderate thinking" },
+  { key: "high", description: "Deep thinking" },
+  { key: "xhigh", description: "Extra-high reasoning" },
+  { key: "max", description: "Maximum reasoning" },
 ];
 
 export function buildThinkingOptions(

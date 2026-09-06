@@ -2521,8 +2521,11 @@ export class PiService {
       piWarn(`setThinkingLevel("${level}") ignored: session not initialized`);
       return;
     }
+    // The SDK clamps to the active model's available levels (e.g. xhigh may
+    // become max) and emits thinking_level_changed with the effective level,
+    // which keeps this._thinkingLevel accurate. Do not overwrite it with the
+    // requested value afterwards or the status bar will show a wrong level.
     this.session.setThinkingLevel(level);
-    this._thinkingLevel = level;
     this.reportStatus();
     // session.setThinkingLevel() delegates persistence to the SDK SessionManager.
   }
