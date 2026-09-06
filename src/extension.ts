@@ -15,6 +15,7 @@ import {
 } from "./session-sidebar-provider.js";
 import { initLogger, piLog, piWarn } from "./logger.js";
 import { getWorkspaceCwd, getWorkspaceFolders, getWorkspaceRoot, getWorkspaceUri } from "./workspace-context.js";
+import { parseChatPanelLocation } from "./chat-panel-location.js";
 import { registerPhase3Commands } from "./phase3-commands.js";
 import { registerPhase4Commands } from "./phase4-commands.js";
 import type { SessionSummary } from "./types.js";
@@ -1127,7 +1128,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   ): Promise<void> {
     const newSw = createSessionWindow(context, { path: forkedPath }, false, cwd);
     setActiveSession(newSw);
-    void newSw.webviewPanel.show();
+    void newSw.webviewPanel.show(chatShowColumn());
     sessionTreeProvider?.refresh();
 
     await initSessionInBackground(context, newSw, { openPath: forkedPath });
@@ -1373,7 +1374,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           title: summary?.name ?? summary?.firstMessage,
         }, false, summary?.cwd ?? getWorkspaceCwd());
         setActiveSession(sw);
-        await sw.webviewPanel.show();
+        await sw.webviewPanel.show(chatShowColumn());
         setSessionResultUnread(sw, false);
         sessionTreeProvider?.refresh();
         void initSessionInBackground(context, sw, { openPath: resolved });
@@ -1946,6 +1947,15 @@ async function doUpdatePackage(source: string): Promise<void> {
 
 // ── Add a new session window ──────────────────────────
 
+/** Column for newly opened chats: active group in panel mode, otherwise the
+ *  historical right-side split (ViewColumn.Two is the panel default). */
+function chatShowColumn(): vscode.ViewColumn | undefined {
+  const location = parseChatPanelLocation(
+    vscode.workspace.getConfiguration("pi-on-code").get("chatPanelLocation"),
+  );
+  return location === "panel" ? vscode.ViewColumn.Active : undefined;
+}
+
 function addSession(context: vscode.ExtensionContext, cwd = getWorkspaceCwd()): void {
   const existingDraft = findReusableDraft(sessions.filter((session) => session.cwd === cwd));
   if (existingDraft) {
@@ -1962,12 +1972,7 @@ function addSession(context: vscode.ExtensionContext, cwd = getWorkspaceCwd()): 
     void saveOpenSessionPaths();
   };
   setActiveSession(sw);
-  const withoutSplit = vscode.workspace
-    .getConfiguration("pi-on-code")
-    .get<boolean>("newSessionWithoutSplit", false);
-  // New sessions may open in the active editor group without splitting the
-  // editor area; otherwise the historical split-to-column-Two default stands.
-  void sw.webviewPanel.show(withoutSplit ? vscode.ViewColumn.Active : undefined);
+  void sw.webviewPanel.show(chatShowColumn());
   void initSessionInBackground(context, sw, { fresh: true });
 }
 
