@@ -22,8 +22,7 @@ import { shouldRevealSessionPanel } from "./session-startup.js";
 import { findReusableDraft, shouldPromoteDraft } from "./session-draft.js";
 import { normalizeSessionRename } from "./session-rename.js";
 import {
-  forkSessionLabel,
-  resolveUserMessageEditTarget,
+  forkSessionTitle,
 } from "./user-message-branch.js";
 import {
   canEditSession,
@@ -428,6 +427,43 @@ async function deleteSidebarSession(target: PiSidebarDeleteTarget): Promise<void
   }
 }
 
+/** Locate a session entry by id, SDK message id, or (as a last resort) by the
+ *  rendered user text — freshly sent messages are not always addressable by
+ *  their persisted entry id right away. */
+function resolveMessageEntry(
+  sm: {
+    getEntry?: (id: string) => unknown;
+    getEntries?: () => Array<{ id?: string; type?: string; message?: { id?: string; role?: string; content?: unknown } }>;
+  },
+  entryId: string,
+  content?: string,
+): unknown | null {
+  const entries = sm.getEntries?.() ?? [];
+  const direct = sm.getEntry?.(entryId);
+  if (direct) { return direct; }
+  const byId = entries.find((entry) => entry?.id === entryId);
+  if (byId) { return byId; }
+  const byMessageId = entries.find(
+    (entry) => entry?.type === "message" && entry?.message?.id === entryId,
+  );
+  if (byMessageId) { return byMessageId; }
+  if (content) {
+    const text = content.trim();
+    for (let index = entries.length - 1; index >= 0; index--) {
+      const entry = entries[index];
+      if (entry?.type !== "message" || entry?.message?.role !== "user") { continue; }
+      const raw = entry.message.content;
+      const body = typeof raw === "string"
+        ? raw.trim()
+        : Array.isArray(raw)
+          ? raw.filter((item: { type?: string; text?: string }) => item?.type === "text").map((item) => item.text ?? "").join("\n").trim()
+          : "";
+      if (body === text) { return entry; }
+    }
+  }
+  return null;
+}
+
 /**
  * Rewrite a conversation from an edited historical user message.
  *
@@ -442,6 +478,7 @@ async function editHistoryMessageFromEntry(
   sw: SessionWindow,
   entryId: string,
   text: string,
+  originalText?: string,
 ): Promise<void> {
   const sourceSm = sw.piService.sessionManagerInstance;
   if (!sourceSm) { throw new Error("Session has no session manager."); }
@@ -455,6 +492,8 @@ async function editHistoryMessageFromEntry(
   );
 
   let forkedPath: string | null = null;
+  // Resolve and branch through an isolated temporary manager so the live
+  // source session is never mutated by the SDK's createBranchedSession.
   const tempPi = new PiService(context.secrets);
   try {
     const result = await tempPi.initialize({ openPath: sourcePath, cwd: sw.cwd });
@@ -464,12 +503,19 @@ async function editHistoryMessageFromEntry(
     const entries = (srcSm.getEntries?.() ?? []) as Array<{
       id?: string;
       type?: string;
-      message?: { role?: string };
+      message?: { id?: string; role?: string; content?: unknown };
     }>;
-    const target = resolveUserMessageEditTarget(entries, entryId);
-    if (!target) { throw new Error("Selected entry is not a persisted user message."); }
-    if (target.predecessorId) {
-      forkedPath = srcSm.createBranchedSession(target.predecessorId);
+    const resolved = resolveMessageEntry(srcSm, entryId, originalText);
+    const targetIndex = entries.findIndex((entry) => entry === resolved);
+    const candidate = targetIndex >= 0 ? entries[targetIndex] : undefined;
+    const isUserMessage =
+      candidate?.type === "message" && candidate?.message?.role === "user";
+    if (!candidate || !isUserMessage) {
+      throw new Error("Selected entry is not a persisted user message.");
+    }
+    const predecessorId = targetIndex > 0 ? entries[targetIndex - 1]?.id ?? null : null;
+    if (predecessorId) {
+      forkedPath = srcSm.createBranchedSession(predecessorId);
       if (!forkedPath) { throw new Error("Failed to build the rewritten session."); }
     }
   } finally {
@@ -602,10 +648,21 @@ function createSessionWindow(
 
   // History-message actions are routed through commands so the activate-scope
   // session helpers can run them with the full session registry.
-  webviewPanel.onEditUserMessage = (entryId, text) =>
-    void vscode.commands.executeCommand("pi-on-code.editHistoryMessage", sw.id, entryId, text);
-  webviewPanel.onForkUserMessage = (entryId) =>
-    void vscode.commands.executeCommand("pi-on-code.forkHistoryMessage", sw.id, entryId);
+  webviewPanel.onEditUserMessage = (entryId, text, content) =>
+    void vscode.commands.executeCommand(
+      "pi-on-code.editHistoryMessage",
+      sw.id,
+      entryId,
+      text,
+      content,
+    );
+  webviewPanel.onForkUserMessage = (entryId, content) =>
+    void vscode.commands.executeCommand(
+      "pi-on-code.forkHistoryMessage",
+      sw.id,
+      entryId,
+      content,
+    );
 
   sessions.push(sw);
   return sw;
@@ -956,31 +1013,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     sessionId: string,
     entryId: string,
     forkLabel?: string,
+    content?: string,
   ): Promise<void> {
     const srcSw = sessions.find((s) => s.id === sessionId);
     if (!srcSw || !srcSw.piService.sessionManagerInstance) {
       throw new Error(`Source session not found (id=${sessionId}).`);
     }
-
-    // Get the source file path — we open a fresh SessionManager to branch
-    // so the source session is not mutated.
     const sourcePath = srcSw.piService.sessionFilePath;
-    if (!sourcePath) {
-      throw new Error("Source session has no persisted file.");
-    }
+    if (!sourcePath) { throw new Error("Source session has no persisted file."); }
 
-    // Open a temporary PiService to get an isolated SessionManager for branching
+    // Branch through an isolated temporary manager so the live source session
+    // is never mutated by the SDK's createBranchedSession. Messages are
+    // persisted as they are written, and live-entry sync keeps the ids in DOM
+    // canonical by the time the reply completes.
     const tempPi = new PiService(context.secrets);
     let forkedPath: string;
     try {
       const result = await tempPi.initialize({ openPath: sourcePath, cwd: srcSw.cwd });
-      if (!result.success) {
-        throw new Error(`Cannot open source session: ${result.error}`);
-      }
+      if (!result.success) { throw new Error(`Cannot open source session: ${result.error}`); }
       const srcSm = tempPi.sessionManagerInstance;
       if (!srcSm) { throw new Error("Source session has no session manager."); }
 
-      const entry = srcSm.getEntry(entryId);
+      const entry = resolveMessageEntry(srcSm, entryId, content) as {
+        type?: string;
+        message?: { role?: string };
+        id?: string;
+      } | null;
       if (!entry) { throw new Error("Entry not found in source session."); }
 
       const isUserMsg = entry.type === "message" && entry.message?.role === "user";
@@ -990,12 +1048,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         throw new Error("Fork only works on user, assistant, or custom messages. Selected entry type: " + (entry.type ?? "unknown"));
       }
 
-      // Fork at the selected entry (include it in the branch)
-      const targetLeafId = entryId;
-      forkedPath = srcSm.createBranchedSession(targetLeafId);
-      if (!forkedPath) {
-        throw new Error("Failed to create forked session file.");
-      }
+      forkedPath = srcSm.createBranchedSession(entry.id ?? entryId);
+      if (!forkedPath) { throw new Error("Failed to create forked session file."); }
     } finally {
       tempPi.dispose();
     }
@@ -1131,7 +1185,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "pi-on-code.editHistoryMessage",
-      async (sessionId: unknown, entryId: unknown, text: unknown) => {
+      async (sessionId: unknown, entryId: unknown, text: unknown, content: unknown) => {
         if (typeof sessionId !== "string" || typeof entryId !== "string" || typeof text !== "string") {
           return;
         }
@@ -1141,7 +1195,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return;
         }
         try {
-          await editHistoryMessageFromEntry(context, sw, entryId, text);
+          await editHistoryMessageFromEntry(
+            context,
+            sw,
+            entryId,
+            text,
+            typeof content === "string" ? content : undefined,
+          );
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
           vscode.window.showErrorMessage(`Edit failed: ${e.message ?? e}`);
@@ -1152,7 +1212,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "pi-on-code.forkHistoryMessage",
-      async (sessionId: unknown, entryId: unknown) => {
+      async (sessionId: unknown, entryId: unknown, content: unknown) => {
         if (typeof sessionId !== "string" || typeof entryId !== "string") { return; }
         const sw = sessions.find((session) => session.id === sessionId);
         if (!sw) {
@@ -1167,7 +1227,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             vscode.window.showWarningMessage("Stop the current run before forking a historical message.");
             return;
           }
-          await doForkFromOpenEntry(sw.id, entryId, forkSessionLabel(title));
+          await doForkFromOpenEntry(
+            sw.id,
+            entryId,
+            forkSessionTitle(title),
+            typeof content === "string" ? content : undefined,
+          );
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
           vscode.window.showErrorMessage(`Fork failed: ${e.message ?? e}`);

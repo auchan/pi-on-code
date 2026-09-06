@@ -67,8 +67,8 @@ export class PiWebviewPanel {
   /** Callback invoked when the panel is disposed (VS Code tab closed) */
   private _onDispose: PanelDisposeCallback | null = null;
   private _onBeforePrompt: ((text: string) => void) | null = null;
-  private _onEditUserMessage: ((entryId: string, text: string) => void | Promise<void>) | null = null;
-  private _onForkUserMessage: ((entryId: string) => void | Promise<void>) | null = null;
+  private _onEditUserMessage: ((entryId: string, text: string, content?: string) => void | Promise<void>) | null = null;
+  private _onForkUserMessage: ((entryId: string, content?: string) => void | Promise<void>) | null = null;
   private _initialWelcomeVisible = false;
 
   constructor(
@@ -85,10 +85,10 @@ export class PiWebviewPanel {
   /** Register a callback that fires when the panel/webview is closed. */
   set onDispose(cb: PanelDisposeCallback | null) { this._onDispose = cb; }
   set onBeforePrompt(cb: ((text: string) => void) | null) { this._onBeforePrompt = cb; }
-  set onEditUserMessage(cb: ((entryId: string, text: string) => void | Promise<void>) | null) {
+  set onEditUserMessage(cb: ((entryId: string, text: string, content?: string) => void | Promise<void>) | null) {
     this._onEditUserMessage = cb;
   }
-  set onForkUserMessage(cb: ((entryId: string) => void | Promise<void>) | null) {
+  set onForkUserMessage(cb: ((entryId: string, content?: string) => void | Promise<void>) | null) {
     this._onForkUserMessage = cb;
   }
   set initialWelcomeVisible(value: boolean) { this._initialWelcomeVisible = value; }
@@ -691,7 +691,11 @@ export class PiWebviewPanel {
           case "user-message-edit":
             if (typeof message.entryId === "string" && typeof message.text === "string") {
               try {
-                await this._onEditUserMessage?.(message.entryId, message.text);
+                await this._onEditUserMessage?.(
+                  message.entryId,
+                  message.text,
+                  typeof message.content === "string" ? message.content : undefined,
+                );
               } catch (error: unknown) {
                 this.postMessage({
                   type: "error",
@@ -705,7 +709,10 @@ export class PiWebviewPanel {
           case "user-message-fork":
             if (typeof message.entryId === "string") {
               try {
-                await this._onForkUserMessage?.(message.entryId);
+                await this._onForkUserMessage?.(
+                  message.entryId,
+                  typeof message.content === "string" ? message.content : undefined,
+                );
               } catch (error: unknown) {
                 this.postMessage({
                   type: "error",

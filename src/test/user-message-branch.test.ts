@@ -1,7 +1,7 @@
 import * as assert from "node:assert";
 import { readFileSync } from "node:fs";
 import {
-  forkSessionLabel,
+  forkSessionTitle,
   isUserMessageEntry,
   resolveUserMessageEditTarget,
   type SessionEntryLike,
@@ -48,18 +48,12 @@ suite("User message branch helpers", () => {
     assert.strictEqual(resolveUserMessageEditTarget(entries, "a1"), null);
   });
 
-  test("formats fork labels from the original title", () => {
-    assert.strictEqual(forkSessionLabel("Fix lint errors"), "<fork: Fix lint errors>");
-    assert.strictEqual(forkSessionLabel("  "), "<fork: Untitled session>");
-    assert.strictEqual(forkSessionLabel(""), "<fork: Untitled session>");
-  });
-
-  test("caps fork labels by code points", () => {
-    const long = "title ".repeat(30);
-    const label = forkSessionLabel(long);
-    assert.ok(label.startsWith("<fork: "));
-    assert.ok(label.endsWith(">"));
-    assert.ok(Array.from(label.slice(7, -1)).length <= 41, "label body stays near the cap");
+  test("numbers fork titles from the base title", () => {
+    assert.strictEqual(forkSessionTitle("Fix lint errors"), "Fix lint errors (2)");
+    assert.strictEqual(forkSessionTitle("Fix lint errors (2)"), "Fix lint errors (3)");
+    assert.strictEqual(forkSessionTitle("Fix lint errors (12)"), "Fix lint errors (13)");
+    assert.strictEqual(forkSessionTitle("  "), "Untitled session (2)");
+    assert.strictEqual(forkSessionTitle("<fork: Fix lint errors>"), "Fix lint errors (2)");
   });
 
   test("wires transcript actions through panel callbacks and commands", () => {
@@ -70,8 +64,11 @@ suite("User message branch helpers", () => {
     assert.match(handlers, /user-message-edit/);
     assert.match(handlers, /user-message-fork/);
     assert.match(handlers, /className = "user-edit-btn"/);
-    assert.match(handlers, /className = "user-fork-btn"/);
-    assert.match(handlers, /\.user-edit-overlay/);
+    assert.match(handlers, /className = "assistant-fork-btn"/);
+    assert.doesNotMatch(handlers, /className = "user-fork-btn"/);
+    assert.match(handlers, /className = "assistant-turn-actions"/);
+    assert.match(handlers, /className = "user-edit-input"/);
+    assert.match(handlers, /className = "user-edit-actions"/);
     assert.match(handlers, /function setUserEditActionsEnabled\(enabled: boolean\)/);
     assert.match(handlers, /setUserEditActionsEnabled\(false\)/);
     assert.match(handlers, /setUserEditActionsEnabled\(true\)/);
@@ -89,10 +86,11 @@ suite("User message branch helpers", () => {
     );
     assert.match(extension, /"pi-on-code\.editHistoryMessage"/);
     assert.match(extension, /"pi-on-code\.forkHistoryMessage"/);
-    assert.match(extension, /resolveUserMessageEditTarget\(entries, entryId\)/);
-    assert.match(extension, /createBranchedSession\(target\.predecessorId\)/);
+    assert.match(extension, /Selected entry is not a persisted user message\./);
+    assert.match(extension, /createBranchedSession\(predecessorId\)/);
     assert.match(extension, /sendPrompt\(text\)/);
-    assert.match(extension, /forkSessionLabel\(title\)/);
+    assert.match(extension, /forkSessionTitle\(title\)/);
+    assert.match(extension, /\.message\?\.id === entryId/);
     assert.match(extension, /canEditSession\(sw\.isStreaming\)/);
     assert.match(extension, /waitForReplyStart\(/);
     assert.match(extension, /resolveEditOutcome\(observation\)/);

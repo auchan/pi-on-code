@@ -11,6 +11,7 @@ import {
   shortenPath, renderCodeBlockHTML,
 } from "../render/engine.js";
 import { restoreScrollAfterPrepend } from "../render/history-pagination.js";
+import { decideAutoLoadOlder } from "../render/history-autofill.js";
 import {
   collapseExecutionProcesses,
   openExecutionProcessForElement,
@@ -196,6 +197,9 @@ function handleExtensionMessage(msg: any): void {
       case "conversation-turns-update":
         window.dispatchEvent(new CustomEvent(CONVERSATION_TURNS_EVENT, { detail: msg.data?.turns ?? [] }));
         break;
+      case "live-entry-ids":
+        handleLiveEntryIds(msg.data);
+        break;
       case "localImageResolved":
         applyResolvedLocalImage(msg.data);
         break;
@@ -287,39 +291,89 @@ function assistantMessageText(message: HTMLElement): string {
   return (clone.textContent || "").replace(/\s+$/g, "").trim();
 }
 
-function updateLastAssistantCopyButton(root: HTMLElement): void {
-  // Clear any stale buttons first.
-  root.querySelectorAll(".assistant-copy-btn").forEach((button) => button.remove());
+/** Replace transient SDK message ids with canonical persisted entry ids once
+ *  the SDK exposes them, so reveal/edit/fork target the real session entries. */
+function handleLiveEntryIds(data: unknown): void {
+  const mapping = (data && typeof data === "object" && "mapping" in data
+    ? (data as { mapping?: Record<string, unknown> }).mapping
+    : undefined);
+  if (!mapping) { return; }
+  for (const messageId of Object.keys(mapping)) {
+    const entryId = mapping[messageId];
+    if (typeof entryId !== "string" || entryId === messageId) { continue; }
+    const escaped = CSS.escape(messageId);
+    const byDataId = state.chatContainer.querySelector<HTMLElement>(`.message[data-entry-id="${escaped}"]`);
+    if (byDataId) { byDataId.setAttribute("data-entry-id", entryId); }
+    const byElementId = document.getElementById("entry-" + messageId);
+    if (byElementId) { byElementId.id = "entry-" + entryId; }
+  }
+  // Per-turn action rows may have captured the transient id for their fork
+  // target; rebuild them with the canonical ids.
+  updateLastAssistantCopyButton(state.chatContainer);
+}
 
-  // Every completed user turn keeps a copy control below its final assistant
-  // message, so each turn's answer can be copied independently. A turn group
-  // is the run of assistant messages that follows a user message (a leading
-  // run without a user message is its own group too).
+function updateLastAssistantCopyButton(root: HTMLElement): void {
+  // Clear any stale controls first.
+  root.querySelectorAll(".assistant-turn-actions").forEach((row) => row.remove());
+
+  // Every completed user turn keeps an action row (Copy + Fork) below its final
+  // assistant message. A turn group is the run of assistant messages that
+  // follows a user message (a leading run without a user message is its own
+  // group and has no fork target).
   const groups: HTMLElement[][] = [];
   let current: HTMLElement[] = [];
+  const flush = (): void => {
+    if (current.length > 0) { groups.push(current); }
+    current = [];
+  };
   const children = Array.from(root.children as HTMLCollectionOf<HTMLElement>);
   for (const child of children) {
     if (!child.classList.contains("message")) { continue; }
     if (child.classList.contains("user")) {
-      groups.push(current);
-      current = [];
+      flush();
     } else if (child.classList.contains("assistant")) {
       current.push(child);
     }
   }
-  groups.push(current);
+  flush();
 
-  for (const turnAssistants of groups) {
-    if (turnAssistants.length === 0) { continue; }
-    const texts = turnAssistants.map(assistantMessageText).filter(Boolean);
+  for (const group of groups) {
+    if (group.length === 0) { continue; }
+    const texts = group.map(assistantMessageText).filter(Boolean);
     if (texts.length === 0) { continue; }
+
+    const row = document.createElement("div");
+    row.className = "assistant-turn-actions";
+
     const copyButton = document.createElement("button");
     copyButton.type = "button";
     copyButton.className = "assistant-copy-btn";
     copyButton.textContent = "Copy";
     copyButton.setAttribute("aria-label", "Copy assistant response");
     (copyButton as HTMLButtonElement & { _copyText?: string })._copyText = texts.join("\n\n");
-    turnAssistants[turnAssistants.length - 1]!.appendChild(copyButton);
+    row.appendChild(copyButton);
+
+    // Fork at the assistant message this row is attached to, so the branch
+    // includes that answer. The entry id is the persisted one after the
+    // live-entry sync; otherwise the SDK message id is resolved by the host.
+    const host = group[group.length - 1]!;
+    const forkId =
+      host.getAttribute("data-entry-id")
+      ?? host.id.replace(/^entry-/, "");
+    if (forkId) {
+      const forkButton = document.createElement("button");
+      forkButton.type = "button";
+      forkButton.className = "assistant-fork-btn";
+      forkButton.textContent = "Fork";
+      forkButton.title = "Fork a new session at this message";
+      forkButton.setAttribute("aria-label", "Fork session at this message");
+      forkButton.addEventListener("click", () => {
+        window.__vscode.postMessage({ type: "user-message-fork", entryId: forkId });
+      });
+      row.appendChild(forkButton);
+    }
+
+    host.appendChild(row);
   }
 }
 
@@ -600,6 +654,9 @@ export function handleChatMessage(data: any) {
       el.id = "entry-" + data.entryId;
       el.setAttribute("data-entry-id", data.entryId);
     }
+    if (data.role === "user" && typeof data.content === "string") {
+      el.setAttribute("data-user-text", data.content);
+    }
     var mc = el.querySelector(".message-content");
     if (mc) {
       var imageGallery = createMessageImages(images);
@@ -632,25 +689,45 @@ export function handleChatMessage(data: any) {
       (userCopyButton as HTMLButtonElement & { _copyText?: string })._copyText = data.content;
       actions.appendChild(userCopyButton);
 
-      // Edit / fork operate on the persisted entry, so they need its entry id
-      // and are hidden while a run is in progress.
-      if (data.entryId && !state.isStreaming) {
+      // Edit operates on the persisted entry, so it needs its entry id. It is
+      // always rendered (when possible) and merely disabled during a run so a
+      // reply that starts before a replayed page finishes never loses it.
+      if (data.entryId) {
         var editButton = document.createElement("button");
         editButton.type = "button";
         editButton.className = "user-edit-btn";
         editButton.textContent = "Edit";
         editButton.title = "Edit this message and continue from here";
         editButton.setAttribute("aria-label", "Edit user message and continue from here");
+        editButton.disabled = state.isStreaming;
         editButton.addEventListener("click", function () {
-          if (el.querySelector(".user-edit-overlay")) { return; }
-          var overlay = document.createElement("div");
-          overlay.className = "user-edit-overlay";
+          if (el.querySelector(".user-edit-input")) { return; }
+          var actionsRow = el.querySelector<HTMLElement>(".user-actions");
+          if (actionsRow) { actionsRow.style.display = "none"; }
+          var content = el.querySelector<HTMLElement>(".message-content");
+          var originalHtml = content ? content.innerHTML : "";
+          var startHeight = content ? content.clientHeight || 0 : 0;
           var area = document.createElement("textarea");
           area.className = "user-edit-input";
           area.value = data.content;
           area.setAttribute("aria-label", "Edited user message");
+          if (content) {
+            content.innerHTML = "";
+            content.appendChild(area);
+          } else {
+            el.appendChild(area);
+          }
+          // Start at the original message height (min-height keeps it at least
+          // two rows) and grow with the edited text as the user types.
+          var autosize = function () {
+            area.style.height = "auto";
+            var target = Math.max(startHeight, area.scrollHeight);
+            area.style.height = target + "px";
+          };
+          autosize();
+          area.addEventListener("input", autosize);
           var bar = document.createElement("div");
-          bar.className = "user-edit-bar";
+          bar.className = "user-edit-actions";
           var saveButton = document.createElement("button");
           saveButton.type = "button";
           saveButton.className = "user-edit-save";
@@ -659,32 +736,37 @@ export function handleChatMessage(data: any) {
           cancelButton.type = "button";
           cancelButton.className = "user-edit-cancel";
           cancelButton.textContent = "Cancel";
-          bar.append(cancelButton, saveButton);
-          overlay.append(area, bar);
-          el.appendChild(overlay);
+          bar.append(saveButton, cancelButton);
+          el.appendChild(bar);
           area.focus();
           area.select();
-          cancelButton.addEventListener("click", function () { overlay.remove(); });
+          var restore = function () {
+            if (content) { content.innerHTML = originalHtml; }
+            bar.remove();
+            if (actionsRow) { actionsRow.style.display = ""; }
+          };
+          cancelButton.addEventListener("click", restore);
+          area.addEventListener("keydown", function (event) {
+            if (event.key === "Escape") { event.preventDefault(); restore(); }
+            else if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              saveButton.click();
+            }
+          });
           saveButton.addEventListener("click", function () {
             var next = area.value.trim();
+            restore();
             if (next && next !== data.content) {
-              window.__vscode.postMessage({ type: "user-message-edit", entryId: data.entryId, text: next });
-              overlay.remove();
+              window.__vscode.postMessage({
+                type: "user-message-edit",
+                entryId: data.entryId,
+                text: next,
+                content: data.content,
+              });
             }
           });
         });
         actions.appendChild(editButton);
-
-        var forkButton = document.createElement("button");
-        forkButton.type = "button";
-        forkButton.className = "user-fork-btn";
-        forkButton.textContent = "Fork";
-        forkButton.title = "Fork a new session at this message";
-        forkButton.setAttribute("aria-label", "Fork session at this message");
-        forkButton.addEventListener("click", function () {
-          window.__vscode.postMessage({ type: "user-message-fork", entryId: data.entryId });
-        });
-        actions.appendChild(forkButton);
       }
       el.appendChild(actions);
     }
@@ -703,7 +785,10 @@ export function handleAssistantStart(data: any) {
     // Create the assistant container eagerly before any content arrives
     state.currentAssistantEl = createMessageEl("assistant");
     // #9: Entry ID for scroll-to
-    if (data.entryId) {state.currentAssistantEl.id = "entry-" + data.entryId;}
+    if (data.entryId) {
+      state.currentAssistantEl.id = "entry-" + data.entryId;
+      state.currentAssistantEl.setAttribute("data-entry-id", data.entryId);
+    }
     state.currentThinkingEl = null;
     state._streamPrevTokens = [];  // Reset token tracker for new message
     state.assistantToolCallIds = {};
@@ -1050,6 +1135,7 @@ export function handleStatus(data: any) {
   }
 
 export function handleBatchStart(data: any) {
+    historyAutoFillCount = 0;
     // Hide the welcome screen before enabling batch mode because hideWelcome
     // intentionally ignores ordinary replay events while a batch is active.
     if (data?.hasEntries) { hideWelcome(); }
@@ -1057,6 +1143,35 @@ export function handleBatchStart(data: any) {
     state.historyLoading = true;
     document.body.classList.add("no-animate");
   }
+
+/**
+ * Auto-load earlier history when the transcript is too short to scroll (the
+ * execution-process collapsing can shrink a loaded page below the viewport, so
+ * reaching the top to trigger a manual load may be impossible). Bounded so a
+ * pathological session cannot flood the extension with requests.
+ */
+let historyAutoFillCount = 0;
+
+export function resetHistoryAutoFill(): void {
+  historyAutoFillCount = 0;
+}
+
+function autoFillOlderHistory(): void {
+  const container = state.chatContainer;
+  const hasUserMessage = container.querySelector(".message.user") !== null;
+  const should = decideAutoLoadOlder({
+    hasMore: state.historyHasMore,
+    loading: state.historyLoading,
+    hasUserMessage,
+    scrollableRoom: container.scrollHeight - container.scrollTop - container.clientHeight,
+    scrollTop: container.scrollTop,
+    autoFillCount: historyAutoFillCount,
+  });
+  if (!should) { return; }
+  historyAutoFillCount++;
+  state.historyLoading = true;
+  window.__vscode.postMessage({ type: "loadOlderHistory" });
+}
 
 function settleScrollToBottom(): void {
   // Async rendering (images, local Markdown data URIs, syntax highlighting) can
@@ -1091,6 +1206,7 @@ export function handleBatchEnd(data: any) {
       });
     });
     settleScrollToBottom();
+    autoFillOlderHistory();
   }
 
 interface HistoryPrependContext {
@@ -1230,6 +1346,7 @@ export function handleHistoryPageEnd(data: any) {
       context.previousScrollTop,
     );
     state.historyLoading = false;
+    autoFillOlderHistory();
   }
 
 function submitFollowUpQueue(messages: string[]): void {

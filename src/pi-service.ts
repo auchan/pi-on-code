@@ -428,6 +428,27 @@ export class PiService {
   private _userMessages: Array<{ id: string; text: string; timestamp?: number }> = [];
   private pendingLiveUserMessageIds: string[] = [];
   private liveUserEntryAliases = new Map<string, string>();
+  private liveEntryIdMapJson = "";
+
+  /** Emit canonical entry ids for messages once they exist, so the Webview can
+   *  replace transient SDK message ids used for freshly typed messages. */
+  private syncLiveEntryIds(): void {
+    const entries = (this.sessionManager?.getEntries?.() ?? []) as Array<{
+      id?: string;
+      type?: string;
+      message?: { id?: string };
+    }>;
+    const mapping: Record<string, string> = {};
+    for (const entry of entries) {
+      if (entry?.type === "message" && entry?.message?.id && entry?.id && entry.id !== entry.message.id) {
+        mapping[entry.message.id] = entry.id;
+      }
+    }
+    const json = JSON.stringify(mapping);
+    if (json === this.liveEntryIdMapJson) { return; }
+    this.liveEntryIdMapJson = json;
+    this.emit({ type: "live-entry-ids", data: { mapping } });
+  }
 
   // Lazily replayed session history. The cursor points to the oldest entry
   // currently rendered in the Webview.
@@ -1301,6 +1322,24 @@ export class PiService {
     }
 
     this.historyCursor = findHistoryPageStart(this.historyEntries, this.historyEntries.length);
+    // A tool-heavy tail can make the newest page contain only assistant/tool
+    // content. Pull the start back to the most recent user message so the
+    // conversation always opens with at least one user turn loaded.
+    if (this.historyCursor > 0) {
+      const newestSlice = this.historyEntries.slice(this.historyCursor);
+      const hasUser = newestSlice.some(
+        (entry) => entry?.type === "message" && entry?.message?.role === "user",
+      );
+      if (!hasUser) {
+        for (let index = this.historyCursor - 1; index >= 0; index--) {
+          const entry = this.historyEntries[index];
+          if (entry?.type === "message" && entry?.message?.role === "user") {
+            this.historyCursor = index;
+            break;
+          }
+        }
+      }
+    }
     await this.replayHistoryEntries(
       this.historyEntries.slice(this.historyCursor),
       this.historyToolResultsById,
@@ -1625,6 +1664,7 @@ export class PiService {
         this._isStreaming = false;
         this.currentAssistantToolCalls.clear();
         this.turnIndex = 0;
+        this.syncLiveEntryIds();
         this.emit({ type: "agent-end", data: { messages: event.messages } });
         this.emitConversationTurns(undefined, true);
         this.reportStatus();
@@ -1679,6 +1719,7 @@ export class PiService {
           const entry = byMessageId.get(event.message.id);
           this.emit({ type: "assistant-start", data: { messageId: event.message.id, entryId: entry?.id ?? event.message.id } });
         }
+        this.syncLiveEntryIds();
         break;
       }
 

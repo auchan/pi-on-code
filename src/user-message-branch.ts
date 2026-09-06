@@ -41,12 +41,13 @@ export function resolveUserMessageEditTarget(
   };
 }
 
-/** Display label for a fork, e.g. `<fork: Fix lint errors>`. */
-export function forkSessionLabel(originalTitle: string): string {
-  const title = originalTitle.replace(/\s+/g, " ").trim() || "Untitled session";
-  const codePoints = Array.from(title);
-  const capped = codePoints.length > 40
-    ? `${codePoints.slice(0, 40).join("").replace(/[\s.…]+$/u, "")}…`
-    : title;
-  return `<fork: ${capped}>`;
+/** Next fork title: append an incrementing (N) to the base title.
+ *  Forking a session already titled "… (2)" yields "… (3)", never "… (2) (2)". */
+export function forkSessionTitle(originalTitle: string): string {
+  const cleaned = originalTitle.replace(/\s+/g, " ").trim();
+  const legacy = cleaned.replace(/^<fork:\s*/i, "").replace(/>\s*$/, "").trim();
+  const base = legacy.replace(/\s+\(\d+\)\s*$/u, "").trim() || "Untitled session";
+  const match = legacy.match(/\((\d+)\)\s*$/u);
+  const next = match ? Number(match[1]) + 1 : 2;
+  return `${base} (${next})`;
 }

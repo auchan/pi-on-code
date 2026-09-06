@@ -2107,12 +2107,6 @@ html.pi-viewport-recovering #pi-web-app {
   min-width: 0;
   align-self: stretch;
   margin: 4px 0;
-  padding: 12px 14px;
-  border: 1px solid var(--pi-line);
-  border-left: 3px solid var(--pi-lavender);
-  border-radius: 6px;
-  background: var(--vscode-input-background, var(--pi-surface));
-  background: color-mix(in srgb, var(--pi-lavender) 10%, var(--pi-surface));
 }
 
 .message.user::before {
@@ -2785,7 +2779,7 @@ html.pi-viewport-recovering #pi-web-app {
     width: min(340px, calc(100vw - 36px));
   }
 
-  .message.user {
+  .message.user .message-content {
     padding: 10px 11px;
   }
 
@@ -2921,11 +2915,17 @@ html.pi-viewport-recovering #pi-web-app {
   position: relative;
 }
 
-.assistant-copy-btn {
+.assistant-turn-actions {
   position: absolute;
   bottom: 6px;
   left: 0;
+  display: flex;
+  gap: 4px;
   opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.assistant-turn-actions button {
   padding: 2px 7px;
   border: 1px solid var(--pi-line);
   border-radius: 3px;
@@ -2933,34 +2933,52 @@ html.pi-viewport-recovering #pi-web-app {
   color: var(--pi-muted);
   font-size: 11px;
   cursor: pointer;
-  transition: opacity 120ms ease;
+  white-space: nowrap;
+  transition: border-color 120ms ease, color 120ms ease;
 }
 
-.message.assistant:hover .assistant-copy-btn,
-.assistant-copy-btn:focus-visible {
+.assistant-turn-actions button:hover,
+.assistant-turn-actions button:focus-visible {
+  border-color: var(--pi-lavender);
+  color: var(--pi-text);
+}
+
+.message.assistant:hover .assistant-turn-actions,
+.assistant-turn-actions:focus-within {
   opacity: 1;
-
 }
 
-.message.assistant:has(.assistant-copy-btn) {
+.message.assistant:has(.assistant-turn-actions) {
   padding-bottom: 28px;
 }
 
 .message.user {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
-.message.user:has(.user-copy-btn) {
-  padding-right: 42px;
+/* User card chrome on the content bubble (declared after the shared
+   .message-content base so the border/background are not reset). The action
+   row is appended outside the bubble, below it, right-aligned. */
+.message.user .message-content {
+  position: relative;
+  align-self: stretch;
+  max-width: none;
+  padding: 12px 14px;
+  border: 1px solid var(--pi-line);
+  border-left: 3px solid var(--pi-lavender);
+  border-radius: 6px;
+  background: var(--vscode-input-background, var(--pi-surface));
+  background: color-mix(in srgb, var(--pi-lavender) 10%, var(--pi-surface));
 }
 
 .user-actions {
-  position: absolute;
-  right: 8px;
-  top: 50%;
+  align-self: flex-end;
   display: flex;
-  gap: 4px;
-  transform: translateY(-50%);
+  gap: 6px;
+  margin-top: 8px;
   opacity: 0;
   transition: opacity 120ms ease;
 }
@@ -2969,6 +2987,7 @@ html.pi-viewport-recovering #pi-web-app {
 .message.user:focus-within .user-actions {
   opacity: 1;
 }
+
 
 .user-actions button {
   padding: 2px 7px;
@@ -2979,7 +2998,6 @@ html.pi-viewport-recovering #pi-web-app {
   font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
-  transition: opacity 120ms ease;
 }
 
 .user-actions button:hover,
@@ -2988,38 +3006,36 @@ html.pi-viewport-recovering #pi-web-app {
   color: var(--pi-text);
 }
 
-.user-edit-overlay {
-  position: absolute;
-  z-index: 6;
-  inset: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  border: 1px solid var(--pi-lavender);
-  border-radius: 4px;
-  background: var(--pi-surface);
+.message.user:has(.user-edit-input) .user-actions {
+  display: none;
 }
 
+/* Inline editor: replaces the bubble content, so it inherits the message
+   bubble appearance (no extra border/background) and keeps at least two rows. */
 .user-edit-input {
+  display: block;
   width: 100%;
-  min-height: 64px;
+  min-height: 3.6em;
   resize: vertical;
-  padding: 6px;
-  border: 1px solid var(--pi-line);
-  border-radius: 2px;
-  background: var(--vscode-input-background, var(--pi-surface));
-  color: var(--vscode-input-foreground, var(--pi-text));
+  overflow-y: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
   font: inherit;
+  line-height: 1.6;
 }
 
-.user-edit-bar {
+.user-edit-actions {
+  align-self: flex-end;
   display: flex;
-  justify-content: flex-end;
   gap: 6px;
+  margin-top: 8px;
 }
 
-.user-edit-bar button {
+.user-edit-actions button {
   padding: 3px 10px;
   border: 1px solid var(--pi-line);
   border-radius: 3px;
@@ -3029,25 +3045,20 @@ html.pi-viewport-recovering #pi-web-app {
   cursor: pointer;
 }
 
+.user-edit-actions button:hover,
+.user-edit-actions button:focus-visible {
+  border-color: var(--pi-lavender);
+  color: var(--pi-text);
+}
+
 .user-edit-save {
   border-color: var(--pi-lavender) !important;
   color: var(--pi-lavender) !important;
 }
 
-.user-edit-btn:disabled,
-.user-fork-btn:disabled {
+.user-edit-btn:disabled {
   opacity: 0.45;
   pointer-events: none;
-}
-
-.user-copy-btn,
-.user-edit-btn,
-.user-fork-btn {
-  position: static;
-  right: auto;
-  top: auto;
-  transform: none;
-  opacity: 1;
 }
 
 .tool-block,

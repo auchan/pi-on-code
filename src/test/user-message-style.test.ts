@@ -8,14 +8,17 @@ const styles = readFileSync(
 
 suite("User message styling", () => {
   test("renders user messages as distinct full-width cards", () => {
-    const rule = styles.match(/\.message\.user \{\n  min-width:[\s\S]*?\n\}/)?.[0];
-    assert.ok(rule, "final user message rule not found");
-    assert.match(rule, /align-self: stretch/);
-    assert.match(rule, /padding: 12px 14px/);
-    assert.match(rule, /border: 1px solid var\(--pi-line\)/);
-    assert.match(rule, /border-left: 3px solid var\(--pi-lavender\)/);
-    assert.match(rule, /border-radius: 6px/);
-    assert.match(rule, /background: color-mix\(in srgb, var\(--pi-lavender\) 10%, var\(--pi-surface\)\)/);
+    // The card chrome sits on the message content; the row stacks it and the
+    // right-aligned action row below so actions live outside the bubble.
+    const card = styles.match(/\.message\.user \.message-content \{\n  position: relative;[\s\S]*?\n\}/)?.[0];
+    assert.ok(card, "user message card rule not found");
+    assert.match(card, /padding: 12px 14px/);
+    assert.match(card, /border: 1px solid var\(--pi-line\)/);
+    assert.match(card, /border-left: 3px solid var\(--pi-lavender\)/);
+    assert.match(card, /border-radius: 6px/);
+    assert.match(card, /background: color-mix\(in srgb, var\(--pi-lavender\) 10%, var\(--pi-surface\)\)/);
+    assert.match(styles, /\.message\.user \{\n  position: relative;\n  display: flex;\n  flex-direction: column;/);
+    assert.match(styles, /\.user-actions \{\n  align-self: flex-end;/);
   });
 
   test("keeps a theme-safe background fallback", () => {
