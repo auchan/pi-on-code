@@ -729,7 +729,12 @@ export class PiSessionSidebarProvider implements vscode.WebviewViewProvider {
       padding: 4px;
       border: 1px solid var(--pi-border);
       border-radius: 4px;
-      background: var(--pi-panel);
+      /* Widget background keeps the menu readable on top of long session
+         lists; sideBarSectionHeader-background is transparent in several
+         themes. The color-mix layer adds a slight translucency so the
+         covered rows stay faintly visible through the backdrop. */
+      background: var(--vscode-editorWidget-background, var(--pi-bg));
+      background: color-mix(in srgb, var(--pi-bg) 94%, transparent);
       box-shadow: 0 6px 18px rgb(0 0 0 / 28%);
     }
     .session-menu.context-positioned {
