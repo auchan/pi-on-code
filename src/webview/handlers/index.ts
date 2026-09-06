@@ -355,23 +355,27 @@ function updateLastAssistantCopyButton(root: HTMLElement): void {
 
     // Fork at the assistant message this row is attached to, so the branch
     // includes that answer. The entry id is the persisted one after the
-    // live-entry sync; otherwise the SDK message id is resolved by the host.
+    // live-entry sync; otherwise the SDK message id is resolved by the host,
+    // and as a last resort the reply text is used to locate the entry.
     const host = group[group.length - 1]!;
     const forkId =
       host.getAttribute("data-entry-id")
       ?? host.id.replace(/^entry-/, "");
-    if (forkId) {
-      const forkButton = document.createElement("button");
-      forkButton.type = "button";
-      forkButton.className = "assistant-fork-btn";
-      forkButton.textContent = "Fork";
-      forkButton.title = "Fork a new session at this message";
-      forkButton.setAttribute("aria-label", "Fork session at this message");
-      forkButton.addEventListener("click", () => {
-        window.__vscode.postMessage({ type: "user-message-fork", entryId: forkId });
+    const forkText = texts.join("\n\n");
+    const forkButton = document.createElement("button");
+    forkButton.type = "button";
+    forkButton.className = "assistant-fork-btn";
+    forkButton.textContent = "Fork";
+    forkButton.title = "Fork a new session at this message";
+    forkButton.setAttribute("aria-label", "Fork session at this message");
+    forkButton.addEventListener("click", () => {
+      window.__vscode.postMessage({
+        type: "user-message-fork",
+        entryId: forkId || "",
+        content: forkText,
       });
-      row.appendChild(forkButton);
-    }
+    });
+    row.appendChild(forkButton);
 
     host.appendChild(row);
   }
@@ -637,13 +641,16 @@ export function handleChatMessage(data: any) {
     var userMessageKey = String(data.content || "") + "\u0000" + imageKey + "\u0000" + contextKey;
 
     // Dedup repeated SDK/replay events while keeping image-only messages distinct.
-    if (data.role === "user" && userMessageKey === state.lastUserMessageContent) {return;}
-    if (data.role === "user") {
+    // Replay (batch/history) contains real historical entries that may repeat the
+    // same text (e.g. two identical “ping” prompts), so deduplication only applies
+    // to live streaming events.
+    if (data.role === "user" && !state._inBatch) {
+      if (userMessageKey === state.lastUserMessageContent) { return; }
       state.lastUserMessageContent = userMessageKey;
       // Populate state.userMessageHistory for up-arrow recall (#2).
       if (data.content) {
         state.userMessageHistory.unshift({ text: data.content });
-        if (state.userMessageHistory.length > 50) {state.userMessageHistory.pop();}
+        if (state.userMessageHistory.length > 50) { state.userMessageHistory.pop(); }
       }
     }
 
@@ -1215,6 +1222,9 @@ export function handleBatchEnd(data: any) {
       });
     });
     settleScrollToBottom();
+    // Replaying a session records its last user text; a freshly typed prompt
+    // that matches it (e.g. “ping” twice) must not be deduplicated away.
+    state.lastUserMessageContent = null;
     autoFillOlderHistory();
   }
 

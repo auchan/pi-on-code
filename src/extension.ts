@@ -453,8 +453,10 @@ function resolveMessageEntry(
     const text = content.trim();
     for (let index = entries.length - 1; index >= 0; index--) {
       const entry = entries[index];
-      if (entry?.type !== "message" || entry?.message?.role !== "user") { continue; }
-      const raw = entry.message.content;
+      const message = entry?.message;
+      const role = message?.role;
+      if (entry?.type !== "message" || (role !== "user" && role !== "assistant")) { continue; }
+      const raw = message?.content;
       const body = typeof raw === "string"
         ? raw.trim()
         : Array.isArray(raw)
