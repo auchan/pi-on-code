@@ -398,6 +398,9 @@ export function handleAgentEnd() {
     });
     state.isStreaming = false;
     setUserEditActionsEnabled(true);
+    // A new turn may reuse the same prompt text (e.g. after a fork); do not
+    // deduplicate it against a previous turn's identical message.
+    state.lastUserMessageContent = null;
     state.isRetrying = false;
     state.assistantToolCallIds = {};
     removeWorkingIndicator();
@@ -2758,6 +2761,8 @@ export function renderInlineCustomMessage(data: any) {
 
 function renderForkDivider(sourceName: string, details: { sourceId?: unknown } | null): void {
   hideWelcome();
+  // A forked continuation is a new turn even if it repeats the prompt text.
+  state.lastUserMessageContent = null;
   const row = document.createElement("div");
   row.className = "fork-divider";
   const ruleLeft = document.createElement("span");
