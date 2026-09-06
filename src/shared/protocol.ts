@@ -395,7 +395,7 @@ const ExtensionToWebviewSchema = z.discriminatedUnion("type", [
         description: z.string().optional(),
         icon: z.string().optional(),
         selected: z.boolean().optional(),
-      })).max(500),
+      })).max(5000),
     }),
   }),
 
