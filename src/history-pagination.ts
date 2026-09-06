@@ -2,12 +2,14 @@ export const HISTORY_PAGE_SIZE = 20;
 
 interface HistoryEntryLike {
   type?: unknown;
+  display?: unknown;
   message?: { role?: unknown; customType?: unknown; display?: unknown };
 }
 
 /** Entries that produce visible conversation content during session replay. */
 export function isVisibleHistoryEntry(entry: HistoryEntryLike): boolean {
   if (entry.type === "compaction") { return true; }
+  if (entry.type === "custom_message") { return entry.display === true; }
   if (entry.type !== "message") { return false; }
   const role = entry.message?.role;
   if (role === "custom") {

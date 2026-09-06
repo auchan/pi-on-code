@@ -723,6 +723,11 @@ export class PiWebviewPanel {
             break;
 
           // Request settings state (#2, #8)
+          case "open-session":
+            if (typeof message.sessionId === "string") {
+              void vscode.commands.executeCommand("pi-on-code.resumeSessionById", message.sessionId);
+            }
+            break;
           case "resendUserMessage":
             if (message.text) {
               await this.piService.sendPrompt(message.text);
