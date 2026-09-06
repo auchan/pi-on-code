@@ -52,14 +52,14 @@ code --install-extension auchan.pion-code
 
 - VS Code 1.118 或更高版本。
 - Node.js 22 或更高版本。
-- Pi coding agent 0.80.8 至 0.82.1（当前已验证的兼容范围）。
+- Pi coding agent 0.80.8 至 0.85.1（当前已验证的兼容范围）。
 
-Pi 0.80.8 是支持的最低版本，因为 Pi on Code 使用了 [Pi 0.80.8](https://pi.dev/news/releases/0.80.8) 引入的 `ModelRuntime` 驱动 SDK。所需的 Session、Extension Runner、Package Manager 与 Settings API 已在 Pi 0.82.1 上验证。上游变更请参见 [Pi 发布说明](https://pi.dev/news)。
+Pi 0.80.8 是支持的最低版本，因为 Pi on Code 使用了 [Pi 0.80.8](https://pi.dev/news/releases/0.80.8) 引入的 `ModelRuntime` 驱动 SDK。所需的 Session、Extension Runner、Package Manager 与 Settings API 已在 Pi 0.85.1 上验证。上游变更请参见 [Pi 发布说明](https://pi.dev/news)。
 
 全局安装最新兼容的 Pi 版本：
 
 ```powershell
-npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.82.1
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.85.1
 ```
 
 先在终端中完成 Pi 认证，运行 `Pi: Set Up API Key / Login`，或从命令面板使用 `Pi: Set Anthropic API Key` / `Pi: Set OpenAI API Key`。通过这些命令输入的 API 密钥存储在 VS Code SecretStorage 中。

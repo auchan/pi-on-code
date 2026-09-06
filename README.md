@@ -75,13 +75,13 @@ It does not reveal a new chat tab automatically when there are no tabs to restor
 Pi 0.80.8 is the minimum supported release because Pi on Code uses the
 `ModelRuntime`-based SDK introduced in [Pi 0.80.8](https://pi.dev/news/releases/0.80.8).
 The required Session, Extension Runner, Package Manager, and Settings APIs have
-been verified through Pi 0.82.1. See the [Pi release notes](https://pi.dev/news)
+been verified through Pi 0.85.1. See the [Pi release notes](https://pi.dev/news)
 for upstream changes.
 
 Install the latest compatible Pi release globally:
 
 ```powershell
-npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.82.1
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.85.1
 ```
 
 Authenticate Pi from a terminal first, run `Pi: Set Up API Key / Login`, or use

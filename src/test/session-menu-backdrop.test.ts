@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const source = readFileSync(
   new URL("../../src/session-sidebar-provider.ts", import.meta.url),
   "utf8",
-);
+).replace(/\r\n/g, "\n");
 
 function menuRule(): string {
   const start = source.indexOf(".session-menu {\n");
