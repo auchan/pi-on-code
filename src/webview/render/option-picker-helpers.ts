@@ -12,6 +12,8 @@ export interface PickerOptionItem {
   /** Optional single-glyph prefix such as "●", "★", "☰". */
   icon?: string;
   selected?: boolean;
+  /** True when this option is the current default for its kind. */
+  isDefault?: boolean;
 }
 
 export interface PickerAnchorRect {
@@ -127,10 +129,11 @@ export function buildThinkingOptions(
     : THINKING_LEVELS;
   return levels.map((level) => ({
     key: level.key,
-    label: level.key === defaultLevel ? `${level.key} ★` : level.key,
+    label: level.key,
     description: level.description,
     icon: level.key === current ? "●" : undefined,
     selected: level.key === current,
+    isDefault: level.key === defaultLevel,
   }));
 }
 

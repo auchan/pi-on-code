@@ -47,22 +47,6 @@ interface PendingPickerRequest {
 }
 
 const pendingPickerRequests: Record<string, PendingPickerRequest> = {};
-let lastPickerAnchor: PendingPickerRequest["anchor"] | null = null;
-
-const MODEL_RECENT_KEY = "pi.modelRecent.v1";
-function getModelRecentKeys(): string[] {
-  try {
-    const raw = localStorage.getItem(MODEL_RECENT_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter((key): key is string => typeof key === "string") : [];
-  } catch { return []; }
-}
-function recordModelRecentKey(key: string): void {
-  try {
-    const next = [key, ...getModelRecentKeys().filter((candidate) => candidate !== key)].slice(0, 8);
-    localStorage.setItem(MODEL_RECENT_KEY, JSON.stringify(next));
-  } catch { /* storage unavailable */ }
-}
 
 function elementAnchorRect(el: HTMLElement): PendingPickerRequest["anchor"] {
   const rect = el.getBoundingClientRect();
@@ -88,47 +72,36 @@ function handlePickerOptions(data: any): void {
   const pending = pendingPickerRequests[data.requestId];
   delete pendingPickerRequests[data.requestId];
   if (!pending) { return; }
-  lastPickerAnchor = pending.anchor;
+  const requestedAlign = data.align === "topLeft" || data.align === "bottomLeft" || data.align === "bottomRight"
+    ? data.align
+    : null;
+  const align = requestedAlign ?? (pending.anchor.left >= window.innerWidth / 2 ? "topRight" : "topLeft");
   void openStatusPicker({
     title: typeof data.title === "string" ? data.title : undefined,
     placeholder: typeof data.placeholder === "string" ? data.placeholder : undefined,
     items: data.items,
     anchor: pending.anchor,
-    align: data.align === "topLeft" || data.align === "bottomLeft" || data.align === "bottomRight" ? data.align : "topRight",
+    align,
     memory: pending.kind === "model"
-      ? { list: getModelRecentKeys, record: recordModelRecentKey }
+      ? {
+          list: () => Array.isArray(data.recent) ? data.recent.filter((key: unknown): key is string => typeof key === "string") : [],
+          record: () => undefined, // host persists recency on selection
+        }
+      : undefined,
+    onSetDefault: pending.kind === "model" || pending.kind === "thinking"
+      ? (key) => {
+          window.__vscode.postMessage({ type: "applyPickerOption", kind: pending.kind, key, asDefault: "set" });
+        }
+      : undefined,
+    onClearDefault: pending.kind === "model"
+      ? (key) => {
+          window.__vscode.postMessage({ type: "applyPickerOption", kind: pending.kind, key, asDefault: "clear" });
+        }
       : undefined,
   }).then((result) => {
     if (result.key !== null) {
       window.__vscode.postMessage({ type: "applyPickerOption", kind: pending.kind, key: result.key });
     }
-  });
-}
-
-function handlePickerConfirm(data: any): void {
-  if (!data || typeof data.requestId !== "string") { return; }
-  const options: Array<{ key: string; label: string; description?: string }> = Array.isArray(data.options)
-    ? data.options.filter((o: unknown) => o && typeof o === "object" && typeof (o as { key?: unknown }).key === "string" && typeof (o as { label?: unknown }).label === "string")
-    : [];
-  const anchor = lastPickerAnchor ?? {
-    top: window.innerHeight - 8,
-    left: 8,
-    right: window.innerWidth - 8,
-    bottom: window.innerHeight - 8,
-    width: Math.max(0, window.innerWidth - 16),
-    height: 0,
-  };
-  void openStatusPicker({
-    title: typeof data.prompt === "string" ? data.prompt : undefined,
-    items: options.map((o) => ({ key: o.key, label: o.label, description: o.description })),
-    anchor,
-    align: data.align === "topLeft" || data.align === "bottomLeft" || data.align === "bottomRight" ? data.align : "topRight",
-  }).then((result) => {
-    window.__vscode.postMessage({
-      type: "picker-confirm-result",
-      requestId: data.requestId,
-      key: result.key ?? "skip",
-    });
   });
 }
 
@@ -308,7 +281,6 @@ function handleExtensionMessage(msg: any): void {
       case "scoped-models-update": handleScopedModelsUpdate(msg.data); break;
       case "settings-update":    handleSettingsUpdate(msg.data); break;
       case "picker-options":    handlePickerOptions(msg.data); break;
-      case "picker-confirm":    handlePickerConfirm(msg.data); break;
       case "revealEntry":        handleRevealEntry(msg.entryId, msg.toolCallId); break;
 
       // Errors

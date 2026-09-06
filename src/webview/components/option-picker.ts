@@ -17,6 +17,10 @@ export interface StatusPickerConfig {
   align: PickerAlign;
   /** Optional recency memory: recent keys surface first and are updated on pick. */
   memory?: StatusPickerMemory;
+  /** Optional: show a per-row ☆ to set that option as default without selecting. */
+  onSetDefault?: (key: string) => void;
+  /** Optional: show a per-row ★ on the current default to clear it. */
+  onClearDefault?: (key: string) => void;
 }
 
 export interface StatusPickerMemory {
@@ -32,6 +36,7 @@ export interface StatusPickerResult {
 const MAX_WIDTH = 320;
 const MAX_HEIGHT = 400;
 const VIEWPORT_MARGIN = 8;
+const SEARCH_THRESHOLD = 10;
 
 interface PickerDom {
   host: HTMLElement;
@@ -50,6 +55,10 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: strin
 let openDom: PickerDom | null = null;
 let resolveCurrent: ((result: StatusPickerResult) => void) | null = null;
 let activeMemory: StatusPickerMemory | null = null;
+let activeSetDefault: ((key: string) => void) | null = null;
+let activeClearDefault: ((key: string) => void) | null = null;
+const forcedDefaultKeys = new Set<string>();
+const forcedClearedKeys = new Set<string>();
 let currentItems: PickerOptionItem[] = [];
 let activeItems: PickerOptionItem[] = [];
 let selectedIndex = 0;
@@ -87,8 +96,8 @@ function renderList(query: string): void {
   }
   dom.empty.hidden = true;
   matches.forEach((item, index) => {
-    const row = element("button", "option-picker-row");
-    row.type = "button";
+    const row = element("div", "option-picker-row");
+    row.setAttribute("role", "option");
     row.dataset.index = String(index);
     if (item.icon) {
       const glyph = element("span", "option-picker-icon");
@@ -105,6 +114,38 @@ function renderList(query: string): void {
       text.appendChild(description);
     }
     row.appendChild(text);
+    const isDefaultNow = forcedClearedKeys.has(item.key)
+      ? false
+      : (item.isDefault === true || forcedDefaultKeys.has(item.key));
+    if (activeClearDefault && isDefaultNow) {
+      const star = element("button", "option-picker-clear-default");
+      star.type = "button";
+      star.textContent = "★";
+      star.title = "Remove as default";
+      star.setAttribute("aria-label", `Remove \u201c${item.label}\u201d as default`);
+      star.addEventListener("click", (event) => {
+        event.stopPropagation();
+        forcedClearedKeys.add(item.key);
+        forcedDefaultKeys.delete(item.key);
+        activeClearDefault?.(item.key);
+        renderList(query);
+      });
+      row.appendChild(star);
+    } else if (activeSetDefault && !isDefaultNow) {
+      const star = element("button", "option-picker-set-default");
+      star.type = "button";
+      star.textContent = "☆";
+      star.title = "Set as default";
+      star.setAttribute("aria-label", `Set \u201c${item.label}\u201d as default`);
+      star.addEventListener("click", (event) => {
+        event.stopPropagation();
+        forcedDefaultKeys.add(item.key);
+        forcedClearedKeys.delete(item.key);
+        activeSetDefault?.(item.key);
+        renderList(query);
+      });
+      row.appendChild(star);
+    }
     row.addEventListener("click", () => finish(item.key));
     row.addEventListener("pointermove", () => { selectRow(index); });
     dom.list.appendChild(row);
@@ -141,6 +182,8 @@ function finish(key: string | null): void {
   const resolve = resolveCurrent;
   resolveCurrent = null;
   activeMemory = null;
+  activeSetDefault = null;
+  activeClearDefault = null;
   resolve?.({ key });
 }
 
@@ -174,6 +217,12 @@ export function openStatusPicker(config: StatusPickerConfig): Promise<StatusPick
   document.body.appendChild(host);
   openDom = { host, panel, input, list, empty };
   activeMemory = config.memory ?? null;
+  activeSetDefault = config.onSetDefault ?? null;
+  activeClearDefault = config.onClearDefault ?? null;
+  forcedDefaultKeys.clear();
+  forcedClearedKeys.clear();
+  // Only offer search when the list is likely to overflow the panel height.
+  input.hidden = config.items.length <= SEARCH_THRESHOLD;
   currentItems = activeMemory
     ? orderItemsByRecent([...config.items], activeMemory.list())
     : [...config.items];

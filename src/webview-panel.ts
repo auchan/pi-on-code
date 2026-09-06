@@ -54,6 +54,7 @@ function isStatusPickerKind(value: unknown): value is StatusPickerKind {
 }
 
 export class PiWebviewPanel {
+  private static readonly MODEL_RECENT_KEY = "pi.modelRecent";
   private panel: vscode.WebviewPanel | null = null;
   private piService: PiService;
   private disposables: vscode.Disposable[] = [];
@@ -758,6 +759,7 @@ export class PiWebviewPanel {
                     placeholder: meta.placeholder,
                     align: "topRight",
                     items,
+                    recent: message.kind === "model" ? this.readModelRecent() : undefined,
                   },
                 });
               } catch (error: unknown) {
@@ -773,19 +775,20 @@ export class PiWebviewPanel {
           case "applyPickerOption":
             if (isStatusPickerKind(message.kind) && typeof message.key === "string") {
               try {
-                await this.piService.applyStatusPickerOption(message.kind, message.key);
+                await this.piService.applyStatusPickerOption(
+                  message.kind,
+                  message.key,
+                  message.asDefault === "set" || message.asDefault === "clear" ? message.asDefault : undefined,
+                );
+                if (message.kind === "model" && !message.asDefault) {
+                  this.recordModelRecent(message.key);
+                }
               } catch (error: unknown) {
                 this.postMessage({
                   type: "error",
                   data: { message: `Could not apply selection: ${error instanceof Error ? error.message : String(error)}` },
                 });
               }
-            }
-            break;
-
-          case "picker-confirm-result":
-            if (typeof message.requestId === "string" && typeof message.key === "string") {
-              this.piService.resolvePickerConfirm(message.requestId, message.key);
             }
             break;
 
@@ -838,6 +841,16 @@ export class PiWebviewPanel {
       undefined,
       this.disposables
     );
+  }
+
+  private readModelRecent(): string[] {
+    const raw = this.context.workspaceState.get<unknown>(PiWebviewPanel.MODEL_RECENT_KEY);
+    return Array.isArray(raw) ? raw.filter((key): key is string => typeof key === "string") : [];
+  }
+
+  private recordModelRecent(key: string): void {
+    const next = [key, ...this.readModelRecent().filter((candidate) => candidate !== key)].slice(0, 8);
+    void this.context.workspaceState.update(PiWebviewPanel.MODEL_RECENT_KEY, next);
   }
 
   private async resolveLocalImage(href: string, requestId: string): Promise<void> {

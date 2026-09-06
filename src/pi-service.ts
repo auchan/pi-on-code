@@ -2532,21 +2532,38 @@ export class PiService {
 
   // ── Default model / thinking persistence ──────────────
 
+  /** Save a specific model as the default for future sessions. */
+  setDefaultModel(provider: string, modelId: string): void {
+    const cfg = vscode.workspace.getConfiguration("pi-on-code");
+    cfg.update("defaultModelProvider", provider, vscode.ConfigurationTarget.Global);
+    cfg.update("defaultModelId", modelId, vscode.ConfigurationTarget.Global);
+  }
+
+  /** Set the default thinking level for future sessions. */
+  setDefaultThinking(level: string): void {
+    const cfg = vscode.workspace.getConfiguration("pi-on-code");
+    cfg.update("defaultThinkingLevel", level, vscode.ConfigurationTarget.Global);
+  }
+
+  /** Clear the configured default model (empty values resolve to none). */
+  clearDefaultModel(): void {
+    const cfg = vscode.workspace.getConfiguration("pi-on-code");
+    cfg.update("defaultModelProvider", "", vscode.ConfigurationTarget.Global);
+    cfg.update("defaultModelId", "", vscode.ConfigurationTarget.Global);
+  }
+
   /** Save the current model as the default for future sessions. */
   saveDefaultModel(): void {
     if (!this._model?.provider || !this._model?.id) {
       piWarn("saveDefaultModel() called but no model is active — ignoring");
       return;
     }
-    const cfg = vscode.workspace.getConfiguration("pi-on-code");
-    cfg.update("defaultModelProvider", this._model.provider, vscode.ConfigurationTarget.Global);
-    cfg.update("defaultModelId", this._model.id, vscode.ConfigurationTarget.Global);
+    this.setDefaultModel(this._model.provider, this._model.id);
   }
 
   /** Save the current thinking level as the default for future sessions. */
   saveDefaultThinking(): void {
-    const cfg = vscode.workspace.getConfiguration("pi-on-code");
-    cfg.update("defaultThinkingLevel", this._thinkingLevel, vscode.ConfigurationTarget.Global);
+    this.setDefaultThinking(this._thinkingLevel);
   }
 
   /** Get the configured default model (if any). */
@@ -2797,16 +2814,32 @@ export class PiService {
         : undefined;
       return {
         key: `${m.provider}::${m.modelId}`,
-        label: isDefault ? `${m.label} ★` : m.label,
+        label: m.label,
         description: detail ? `${m.provider} · ${detail}` : m.provider,
         icon: m.modelId === currentId ? "●" : undefined,
         selected: m.modelId === currentId,
+        isDefault,
       };
     });
   }
 
-  /** Apply a selection from the reusable webview status picker. */
-  async applyStatusPickerOption(kind: "model" | "thinking" | "effort" | "budget", key: string): Promise<void> {
+  /** Apply a selection from the reusable webview status picker. When asDefault
+   *  is set, persist that option as the default without changing the active one. */
+  async applyStatusPickerOption(kind: "model" | "thinking" | "effort" | "budget", key: string, asDefault?: "set" | "clear"): Promise<void> {
+    if (asDefault) {
+      if (kind === "model") {
+        const separator = key.lastIndexOf("::");
+        if (separator <= 0 || separator >= key.length - 2) { return; }
+        if (asDefault === "set") {
+          this.setDefaultModel(key.slice(0, separator), key.slice(separator + 2));
+        } else if (asDefault === "clear") {
+          this.clearDefaultModel();
+        }
+      } else if (kind === "thinking" && asDefault === "set") {
+        this.setDefaultThinking(key);
+      }
+      return;
+    }
     if (kind === "effort") {
       await this.setEffort(key);
       return;
@@ -2818,10 +2851,6 @@ export class PiService {
     }
     if (kind === "thinking") {
       await this.setThinkingLevel(key);
-      if (key !== this.getDefaultThinking()) {
-        const save = await this.askSaveAsDefault(`Use "${key}" thinking as the default?`);
-        if (save) { this.saveDefaultThinking(); }
-      }
       return;
     }
     // model
@@ -2830,12 +2859,6 @@ export class PiService {
     const provider = key.slice(0, separator);
     const modelId = key.slice(separator + 2);
     await this.setModel(provider, modelId);
-    const defModel = this.getDefaultModel();
-    const isDefault = Boolean(defModel && provider === defModel.provider && modelId === defModel.id);
-    if (!isDefault) {
-      const save = await this.askSaveAsDefault("Save this model as default?");
-      if (save) { this.saveDefaultModel(); }
-    }
   }
 
   /** Thinking levels the current session/model actually supports, or null when
@@ -2851,43 +2874,6 @@ export class PiService {
       return null;
     }
   }
-
-  /** Ask the Webview (via the custom picker) whether to save the selection as default. */
-  private async askSaveAsDefault(prompt: string): Promise<boolean> {
-    const requestId = `confirm-${++this.pickerConfirmSequence}-${Date.now()}`;
-    return new Promise<boolean>((resolve) => {
-      const timer = setTimeout(() => {
-        this.pickerConfirmResolvers.delete(requestId);
-        resolve(false);
-      }, 60_000);
-      this.pickerConfirmResolvers.set(requestId, (save) => {
-        clearTimeout(timer);
-        this.pickerConfirmResolvers.delete(requestId);
-        resolve(save);
-      });
-      this.emit({
-        type: "picker-confirm",
-        data: {
-          requestId,
-          prompt,
-          align: "topRight",
-          options: [
-            { key: "save", label: "★ Save as default", description: prompt },
-            { key: "skip", label: "Not now" },
-          ],
-        },
-      });
-    });
-  }
-
-  /** Resolve a pending picker confirm (called from the Webview result message). */
-  resolvePickerConfirm(requestId: string, key: string): void {
-    const pending = this.pickerConfirmResolvers.get(requestId);
-    if (pending) { pending(key === "save"); }
-  }
-
-  private pickerConfirmResolvers = new Map<string, (save: boolean) => void>();
-  private pickerConfirmSequence = 0;
 
   emitSettings(): void {
     this.emit({
