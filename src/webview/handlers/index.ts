@@ -39,6 +39,100 @@ import { CustomUi } from "../components/custom-ui.js";
 import { CONVERSATION_TURNS_EVENT, getConversationJumpTop } from "../components/conversation-minimap.js";
 import type { ScrollOwner } from "../render/scroll-lock.js";
 import { findWorkspaceFileMention, removeWorkspaceFileMention } from "../file-mention.js";
+import { openStatusPicker } from "../components/option-picker.js";
+
+interface PendingPickerRequest {
+  kind: string;
+  anchor: { top: number; left: number; right: number; bottom: number; width: number; height: number };
+}
+
+const pendingPickerRequests: Record<string, PendingPickerRequest> = {};
+let lastPickerAnchor: PendingPickerRequest["anchor"] | null = null;
+
+const MODEL_RECENT_KEY = "pi.modelRecent.v1";
+function getModelRecentKeys(): string[] {
+  try {
+    const raw = localStorage.getItem(MODEL_RECENT_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((key): key is string => typeof key === "string") : [];
+  } catch { return []; }
+}
+function recordModelRecentKey(key: string): void {
+  try {
+    const next = [key, ...getModelRecentKeys().filter((candidate) => candidate !== key)].slice(0, 8);
+    localStorage.setItem(MODEL_RECENT_KEY, JSON.stringify(next));
+  } catch { /* storage unavailable */ }
+}
+
+function elementAnchorRect(el: HTMLElement): PendingPickerRequest["anchor"] {
+  const rect = el.getBoundingClientRect();
+  return {
+    top: rect.top,
+    left: rect.left,
+    right: rect.right,
+    bottom: rect.bottom,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+/** Ask the host for JSON options, then open the anchored picker on arrival. */
+function requestStatusPicker(kind: string, anchorEl: HTMLElement): void {
+  const requestId = `picker-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  pendingPickerRequests[requestId] = { kind, anchor: elementAnchorRect(anchorEl) };
+  window.__vscode.postMessage({ type: "requestPickerOptions", requestId, kind });
+}
+
+function handlePickerOptions(data: any): void {
+  if (!data || typeof data.requestId !== "string" || !Array.isArray(data.items)) { return; }
+  const pending = pendingPickerRequests[data.requestId];
+  delete pendingPickerRequests[data.requestId];
+  if (!pending) { return; }
+  lastPickerAnchor = pending.anchor;
+  void openStatusPicker({
+    title: typeof data.title === "string" ? data.title : undefined,
+    placeholder: typeof data.placeholder === "string" ? data.placeholder : undefined,
+    items: data.items,
+    anchor: pending.anchor,
+    align: data.align === "topLeft" || data.align === "bottomLeft" || data.align === "bottomRight" ? data.align : "topRight",
+    memory: pending.kind === "model"
+      ? { list: getModelRecentKeys, record: recordModelRecentKey }
+      : undefined,
+  }).then((result) => {
+    if (result.key !== null) {
+      window.__vscode.postMessage({ type: "applyPickerOption", kind: pending.kind, key: result.key });
+    }
+  });
+}
+
+function handlePickerConfirm(data: any): void {
+  if (!data || typeof data.requestId !== "string") { return; }
+  const options: Array<{ key: string; label: string; description?: string }> = Array.isArray(data.options)
+    ? data.options.filter((o: unknown) => o && typeof o === "object" && typeof (o as { key?: unknown }).key === "string" && typeof (o as { label?: unknown }).label === "string")
+    : [];
+  const anchor = lastPickerAnchor ?? {
+    top: window.innerHeight - 8,
+    left: 8,
+    right: window.innerWidth - 8,
+    bottom: window.innerHeight - 8,
+    width: Math.max(0, window.innerWidth - 16),
+    height: 0,
+  };
+  void openStatusPicker({
+    title: typeof data.prompt === "string" ? data.prompt : undefined,
+    items: options.map((o) => ({ key: o.key, label: o.label, description: o.description })),
+    anchor,
+    align: data.align === "topLeft" || data.align === "bottomLeft" || data.align === "bottomRight" ? data.align : "topRight",
+  }).then((result) => {
+    window.__vscode.postMessage({
+      type: "picker-confirm-result",
+      requestId: data.requestId,
+      key: result.key ?? "skip",
+    });
+  });
+}
+
+
 import {
   handleToolStart, handleToolUpdate, handleToolEnd,
   writeToolRenderer, editToolRenderer, readToolRenderer,
@@ -213,6 +307,8 @@ function handleExtensionMessage(msg: any): void {
       case "user-messages-list": handleUserMessagesList(msg.data); break;
       case "scoped-models-update": handleScopedModelsUpdate(msg.data); break;
       case "settings-update":    handleSettingsUpdate(msg.data); break;
+      case "picker-options":    handlePickerOptions(msg.data); break;
+      case "picker-confirm":    handlePickerConfirm(msg.data); break;
       case "revealEntry":        handleRevealEntry(msg.entryId, msg.toolCallId); break;
 
       // Errors
@@ -2187,17 +2283,17 @@ export function sendPrompt(modeOverride?: "steer" | "queue"): void {
   // ── In-webview status bar click handlers ─────────────
   if (sbModel) {
     sbModel.addEventListener("click", function () {
-      window.__vscode.postMessage({ type: "pickModel" });
+      requestStatusPicker("model", sbModel);
     });
   }
   if (sbThinking) {
     sbThinking.addEventListener("click", function () {
-      window.__vscode.postMessage({ type: "pickThinkingLevel" });
+      requestStatusPicker("thinking", sbThinking);
     });
   }
   if (sbEffort) {
     sbEffort.addEventListener("click", function () {
-      window.__vscode.postMessage({ type: "pickEffort" });
+      requestStatusPicker("effort", sbEffort);
     });
   }
   if (sbCapabilities) {
@@ -2207,7 +2303,7 @@ export function sendPrompt(modeOverride?: "steer" | "queue"): void {
   }
   if (sbUsage) {
     sbUsage.addEventListener("click", function () {
-      window.__vscode.postMessage({ type: "pickContextBudget" });
+      requestStatusPicker("budget", sbUsage);
     });
   }
 let sbSettings = document.getElementById("pi-sb-settings");

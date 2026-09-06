@@ -12,6 +12,7 @@ import { extensionSettingsQuery } from "./vscode-settings.js";
 import { SessionCapabilitySnapshot } from "./capability-snapshot.js";
 import { piError } from "./logger.js";
 import { getWorkspaceCwd } from "./workspace-context.js";
+import { STATUS_PICKER_META } from "./webview/render/option-picker-helpers.js";
 import { limitTabLabel } from "./tab-label.js";
 import type { PiService } from "./pi-service.js";
 import type { PiServiceEvent } from "./types.js";
@@ -44,6 +45,12 @@ export interface CapabilityPanelActions {
     enabled: boolean,
   ) => Promise<void>;
   listSessionReferences?: () => WorkspaceFileItem[];
+}
+
+type StatusPickerKind = "model" | "thinking" | "effort" | "budget";
+
+function isStatusPickerKind(value: unknown): value is StatusPickerKind {
+  return value === "model" || value === "thinking" || value === "effort" || value === "budget";
 }
 
 export class PiWebviewPanel {
@@ -733,6 +740,52 @@ export class PiWebviewPanel {
                   data: { message: `Fork failed: ${error instanceof Error ? error.message : String(error)}` },
                 });
               }
+            }
+            break;
+
+          // Reusable status-bar picker: request option JSON for a kind
+          case "requestPickerOptions":
+            if (typeof message.requestId === "string" && isStatusPickerKind(message.kind)) {
+              try {
+                const items = await this.piService.buildStatusPickerOptions(message.kind);
+                const meta = STATUS_PICKER_META[message.kind];
+                this.postMessage({
+                  type: "picker-options",
+                  data: {
+                    requestId: message.requestId,
+                    kind: message.kind,
+                    title: meta.title,
+                    placeholder: meta.placeholder,
+                    align: "topRight",
+                    items,
+                  },
+                });
+              } catch (error: unknown) {
+                this.postMessage({
+                  type: "error",
+                  data: { message: `Could not load options: ${error instanceof Error ? error.message : String(error)}` },
+                });
+              }
+            }
+            break;
+
+          // Reusable status-bar picker: apply a selection
+          case "applyPickerOption":
+            if (isStatusPickerKind(message.kind) && typeof message.key === "string") {
+              try {
+                await this.piService.applyStatusPickerOption(message.kind, message.key);
+              } catch (error: unknown) {
+                this.postMessage({
+                  type: "error",
+                  data: { message: `Could not apply selection: ${error instanceof Error ? error.message : String(error)}` },
+                });
+              }
+            }
+            break;
+
+          case "picker-confirm-result":
+            if (typeof message.requestId === "string" && typeof message.key === "string") {
+              this.piService.resolvePickerConfirm(message.requestId, message.key);
             }
             break;
 

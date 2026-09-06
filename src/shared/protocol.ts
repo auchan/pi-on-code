@@ -380,6 +380,38 @@ const ExtensionToWebviewSchema = z.discriminatedUnion("type", [
     }),
   }),
 
+  // Status-bar option picker payloads
+  z.object({
+    type: z.literal("picker-options"),
+    data: z.object({
+      requestId: z.string().min(1).max(64),
+      kind: z.enum(["model", "thinking", "effort", "budget"]),
+      title: z.string().optional(),
+      placeholder: z.string().optional(),
+      align: z.enum(["topLeft", "topRight", "bottomLeft", "bottomRight"]).optional(),
+      items: z.array(z.object({
+        key: z.string(),
+        label: z.string(),
+        description: z.string().optional(),
+        icon: z.string().optional(),
+        selected: z.boolean().optional(),
+      })).max(5000),
+    }),
+  }),
+  z.object({
+    type: z.literal("picker-confirm"),
+    data: z.object({
+      requestId: z.string().min(1).max(64),
+      prompt: z.string(),
+      align: z.enum(["topLeft", "topRight", "bottomLeft", "bottomRight"]).optional(),
+      options: z.array(z.object({
+        key: z.string(),
+        label: z.string(),
+        description: z.string().optional(),
+      })),
+    }),
+  }),
+
   // Scroll to entry
   z.object({ type: z.literal("revealEntry"), entryId: z.string(), toolCallId: z.string().optional() }),
 
@@ -543,6 +575,21 @@ const WebviewToExtensionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("toggleAutoAttachActiveEditor") }),
   z.object({ type: z.literal("openUrl"), url: z.string() }),
   z.object({ type: z.literal("openFile"), path: z.string() }),
+  z.object({
+    type: z.literal("requestPickerOptions"),
+    requestId: z.string().min(1).max(64),
+    kind: z.enum(["model", "thinking", "effort", "budget"]),
+  }),
+  z.object({
+    type: z.literal("applyPickerOption"),
+    kind: z.enum(["model", "thinking", "effort", "budget"]),
+    key: z.string().min(1).max(512),
+  }),
+  z.object({
+    type: z.literal("picker-confirm-result"),
+    requestId: z.string().min(1).max(64),
+    key: z.string().min(1).max(64),
+  }),
   z.object({ type: z.literal("resolveLocalImage"), path: z.string().min(1).max(4096), requestId: z.string().min(1).max(100) }),
   z.object({ type: z.literal("promoteToSteer"), text: z.string() }),
   z.object({
