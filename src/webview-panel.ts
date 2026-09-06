@@ -67,6 +67,8 @@ export class PiWebviewPanel {
   /** Callback invoked when the panel is disposed (VS Code tab closed) */
   private _onDispose: PanelDisposeCallback | null = null;
   private _onBeforePrompt: ((text: string) => void) | null = null;
+  private _onEditUserMessage: ((entryId: string, text: string, content?: string) => void | Promise<void>) | null = null;
+  private _onForkUserMessage: ((entryId: string, content?: string) => void | Promise<void>) | null = null;
   private _initialWelcomeVisible = false;
 
   constructor(
@@ -83,6 +85,12 @@ export class PiWebviewPanel {
   /** Register a callback that fires when the panel/webview is closed. */
   set onDispose(cb: PanelDisposeCallback | null) { this._onDispose = cb; }
   set onBeforePrompt(cb: ((text: string) => void) | null) { this._onBeforePrompt = cb; }
+  set onEditUserMessage(cb: ((entryId: string, text: string, content?: string) => void | Promise<void>) | null) {
+    this._onEditUserMessage = cb;
+  }
+  set onForkUserMessage(cb: ((entryId: string, content?: string) => void | Promise<void>) | null) {
+    this._onForkUserMessage = cb;
+  }
   set initialWelcomeVisible(value: boolean) { this._initialWelcomeVisible = value; }
 
   /** Register a callback that fires when this panel/view becomes active. */
@@ -679,7 +687,47 @@ export class PiWebviewPanel {
             void this.triggerContextBudgetPicker();
             break;
 
+          // Rewrite the conversation from an edited user message
+          case "user-message-edit":
+            if (typeof message.entryId === "string" && typeof message.text === "string") {
+              try {
+                await this._onEditUserMessage?.(
+                  message.entryId,
+                  message.text,
+                  typeof message.content === "string" ? message.content : undefined,
+                );
+              } catch (error: unknown) {
+                this.postMessage({
+                  type: "error",
+                  data: { message: `Edit failed: ${error instanceof Error ? error.message : String(error)}` },
+                });
+              }
+            }
+            break;
+
+          // Fork an independent session at a user message
+          case "user-message-fork":
+            if (typeof message.entryId === "string") {
+              try {
+                await this._onForkUserMessage?.(
+                  message.entryId,
+                  typeof message.content === "string" ? message.content : undefined,
+                );
+              } catch (error: unknown) {
+                this.postMessage({
+                  type: "error",
+                  data: { message: `Fork failed: ${error instanceof Error ? error.message : String(error)}` },
+                });
+              }
+            }
+            break;
+
           // Request settings state (#2, #8)
+          case "open-session":
+            if (typeof message.sessionId === "string") {
+              void vscode.commands.executeCommand("pi-on-code.resumeSessionById", message.sessionId);
+            }
+            break;
           case "resendUserMessage":
             if (message.text) {
               await this.piService.sendPrompt(message.text);

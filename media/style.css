@@ -2107,12 +2107,6 @@ html.pi-viewport-recovering #pi-web-app {
   min-width: 0;
   align-self: stretch;
   margin: 4px 0;
-  padding: 12px 14px;
-  border: 1px solid var(--pi-line);
-  border-left: 3px solid var(--pi-lavender);
-  border-radius: 6px;
-  background: var(--vscode-input-background, var(--pi-surface));
-  background: color-mix(in srgb, var(--pi-lavender) 10%, var(--pi-surface));
 }
 
 .message.user::before {
@@ -2785,7 +2779,7 @@ html.pi-viewport-recovering #pi-web-app {
     width: min(340px, calc(100vw - 36px));
   }
 
-  .message.user {
+  .message.user .message-content {
     padding: 10px 11px;
   }
 
@@ -2921,11 +2915,17 @@ html.pi-viewport-recovering #pi-web-app {
   position: relative;
 }
 
-.assistant-copy-btn {
+.assistant-turn-actions {
   position: absolute;
   bottom: 6px;
   left: 0;
+  display: flex;
+  gap: 4px;
   opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.assistant-turn-actions button {
   padding: 2px 7px;
   border: 1px solid var(--pi-line);
   border-radius: 3px;
@@ -2933,28 +2933,195 @@ html.pi-viewport-recovering #pi-web-app {
   color: var(--pi-muted);
   font-size: 11px;
   cursor: pointer;
-  transition: opacity 120ms ease;
+  white-space: nowrap;
+  transition: border-color 120ms ease, color 120ms ease;
 }
 
-.message.assistant:hover .assistant-copy-btn,
-.assistant-copy-btn:focus-visible {
+.assistant-turn-actions button:hover,
+.assistant-turn-actions button:focus-visible {
+  border-color: var(--pi-lavender);
+  color: var(--pi-text);
+}
+
+.fork-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 8px;
+  color: var(--pi-muted);
+}
+
+.fork-divider-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--pi-line);
+}
+
+.fork-divider-icon {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--pi-hover);
+  color: var(--pi-lavender);
+}
+
+.fork-divider-icon svg {
+  display: block;
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fork-divider-text {
+  color: var(--pi-faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.fork-divider-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pi-lavender);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.fork-divider-link:hover {
+  color: var(--pi-strong);
+}
+
+.message.assistant:hover .assistant-turn-actions,
+.assistant-turn-actions:focus-within {
   opacity: 1;
-
 }
 
-.message.assistant:has(.assistant-copy-btn) {
+.message.assistant:has(.assistant-turn-actions) {
   padding-bottom: 28px;
 }
 
 .message.user {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
-.message.user:has(.user-copy-btn) {
-  padding-right: 42px;
+/* User card chrome on the content bubble (declared after the shared
+   .message-content base so the border/background are not reset). The action
+   row is appended outside the bubble, below it, right-aligned. */
+.message.user .message-content {
+  position: relative;
+  align-self: stretch;
+  max-width: none;
+  padding: 12px 14px;
+  border: 1px solid var(--pi-line);
+  border-left: 3px solid var(--pi-lavender);
+  border-radius: 6px;
+  background: var(--vscode-input-background, var(--pi-surface));
+  background: color-mix(in srgb, var(--pi-lavender) 10%, var(--pi-surface));
 }
 
-.user-copy-btn,
+.user-actions {
+  align-self: flex-end;
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.message.user:hover .user-actions,
+.message.user:focus-within .user-actions {
+  opacity: 1;
+}
+
+
+.user-actions button {
+  padding: 2px 7px;
+  border: 1px solid var(--pi-line);
+  border-radius: 3px;
+  background: var(--pi-surface-raised);
+  color: var(--pi-muted);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.user-actions button:hover,
+.user-actions button:focus-visible {
+  border-color: var(--pi-lavender);
+  color: var(--pi-text);
+}
+
+.message.user:has(.user-edit-input) .user-actions {
+  display: none;
+}
+
+/* Inline editor: replaces the bubble content, so it inherits the message
+   bubble appearance (no extra border/background) and keeps at least two rows. */
+.user-edit-input {
+  display: block;
+  width: 100%;
+  min-height: 3.6em;
+  resize: vertical;
+  overflow-y: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.6;
+}
+
+.user-edit-actions {
+  align-self: flex-end;
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.user-edit-actions button {
+  padding: 3px 10px;
+  border: 1px solid var(--pi-line);
+  border-radius: 3px;
+  background: var(--pi-surface-raised);
+  color: var(--pi-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.user-edit-actions button:hover,
+.user-edit-actions button:focus-visible {
+  border-color: var(--pi-lavender);
+  color: var(--pi-text);
+}
+
+.user-edit-save {
+  border-color: var(--pi-lavender) !important;
+  color: var(--pi-lavender) !important;
+}
+
+.user-edit-btn:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.tool-block,
+.bash-execution {
+  position: relative;
+}
+
 .tool-copy-btn {
   position: absolute;
   right: 8px;
@@ -2971,17 +3138,10 @@ html.pi-viewport-recovering #pi-web-app {
   transition: opacity 120ms ease;
 }
 
-.message.user:hover .user-copy-btn,
-.user-copy-btn:focus-visible,
 .tool-block:hover .tool-copy-btn,
 .bash-execution:hover .tool-copy-btn,
 .tool-copy-btn:focus-visible {
   opacity: 1;
-}
-
-.tool-block,
-.bash-execution {
-  position: relative;
 }
 
 /* Generic extension tools expose their arguments in the header. */

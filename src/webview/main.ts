@@ -25,6 +25,7 @@ import { ScrollToBottomButton } from "./components/scroll-to-bottom-button.js";
 // Side-effect imports (self-register on load)
 import "./tools/index.js";
 import "./handlers/index.js";
+import { resetHistoryAutoFill } from "./handlers/index.js";
 
 // ── Initialize ──────────────────────────────────────────────
 
@@ -279,6 +280,7 @@ state.chatContainer.addEventListener("scroll", () => {
     owner: state.scrollOwner,
   })) {
     state.historyLoading = true;
+    resetHistoryAutoFill();
     vscode.postMessage({ type: "loadOlderHistory" });
   }
 });

@@ -324,6 +324,12 @@ const ExtensionToWebviewSchema = z.discriminatedUnion("type", [
       })),
     }),
   }),
+  z.object({
+    type: z.literal("live-entry-ids"),
+    data: z.object({
+      mapping: z.record(z.string(), z.string()),
+    }),
+  }),
 
   // Thinking
   z.object({
