@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.13
+
+- Edit and fork historical user messages: change an earlier prompt (guarded while a run is active) or fork the session from any user message, with a fork divider that keeps resumed and live-turn forks anchored; repeated identical prompts are supported.
+- Reuse a searchable JSON-driven option picker for model, thinking, and effort selectors: it searches by label, lists recently chosen models first, clamps into the viewport near the clicked control, shows per-row Set-as-default stars (cleared with the solid star on the model row), and only offers thinking levels the current model supports.
+- Open the chat gear to Pi quick settings first, with a link into the filtered full VS Code settings for the same preference, and give the session action menu an opaque theme-aware backdrop.
+- Choose where chats open: `chatPanelLocation` keeps them in the active editor group or moves them to a dedicated Pi panel, and new sessions can be created without splitting the current editor.
+- Reduce the expanded Thinking reader height by half in both collapsed and reading modes.
+- Verify compatibility through pi-coding-agent 0.85.1: the in-extension Pi install command now installs 0.85.1, and `scripts/smoke-pi-sdk.mjs` provides a reusable offline SDK smoke check for future versions.
+
 ## 0.2.12
 
 - Collapse finished Thinking and execution steps into single-fold rows with star fold icons, merging consecutive tool calls across empty assistant stubs, and add a per-turn Copy control that copies the full assistant reply without tool calls or thinking.
