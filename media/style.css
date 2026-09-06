@@ -3313,6 +3313,39 @@ html.pi-viewport-recovering #pi-web-app {
   cursor: pointer;
 }
 
+.option-picker-set-default,
+.option-picker-clear-default {
+  margin-left: auto;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.option-picker-set-default {
+  color: var(--pi-muted);
+  opacity: 0;
+}
+
+.option-picker-row:hover .option-picker-set-default,
+.option-picker-row:focus-within .option-picker-set-default {
+  opacity: 1;
+}
+
+.option-picker-clear-default {
+  color: var(--pi-lavender);
+}
+
+.option-picker-set-default:hover,
+.option-picker-set-default:focus-visible,
+.option-picker-clear-default:hover,
+.option-picker-clear-default:focus-visible {
+  color: var(--pi-lavender);
+  outline: none;
+}
+
 .option-picker-row.selected,
 .option-picker-row:hover {
   background: var(--vscode-list-hoverBackground, var(--pi-hover));

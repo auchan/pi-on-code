@@ -94,7 +94,8 @@ suite("Option picker helpers", () => {
     const off = options.find((option) => option.key === "off");
     assert.strictEqual(low?.selected, true);
     assert.strictEqual(low?.icon, "●");
-    assert.ok(off?.label.includes("★"), "default level is starred");
+    assert.strictEqual(off?.isDefault, true);
+    assert.ok(!(off?.label.includes("★") ?? false));
     assert.ok(options.some((option) => option.key === "xhigh"));
   });
 
@@ -139,7 +140,10 @@ suite("Option picker helpers", () => {
     assert.match(panel, /case "requestPickerOptions"/);
     assert.match(panel, /case "applyPickerOption"/);
     assert.match(panel, /buildStatusPickerOptions\(message\.kind\)/);
-    assert.match(panel, /applyStatusPickerOption\(message\.kind, message\.key\)/);
+    assert.match(panel, /this\.piService\.applyStatusPickerOption\(/);
+    assert.match(panel, /message\.kind,/);
+    assert.match(panel, /message\.key,/);
+    assert.match(panel, /message\.asDefault === "set" \|\| message\.asDefault === "clear"/);
 
     const service = readFileSync(new URL("../../src/pi-service.ts", import.meta.url), "utf8");
     assert.match(service, /async buildStatusPickerOptions/);
