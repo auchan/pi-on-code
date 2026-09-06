@@ -9,6 +9,11 @@ import {
   findHistoryPageStart,
   isVisibleHistoryEntry,
 } from "./history-pagination.js";
+import {
+  buildBudgetOptions,
+  buildEffortOptions,
+  buildThinkingOptions,
+} from "./webview/render/option-picker-helpers.js";
 import { buildScopedModels, completeWithModelRuntime, getRuntimeModel, selectInitialModel } from "./pi-model-runtime.js";
 import { buildConversationTurnPreviews } from "./conversation-turns.js";
 import { type ImageContent, type PiServiceEvent, validateExtensionToWebview } from "./types.js";
@@ -2729,6 +2734,107 @@ export class PiService {
 
   emitScopedModels(): void {
     this.emit({ type: "scoped-models-update", data: { models: this.getScopedModels() } });
+  }
+
+  /**
+   * JSON payload for the reusable webview status picker. Labels are plain text
+   * (no VS Code codicon markup); selection and default markers are conveyed
+   * via `selected` and the ★ suffix so the webview owns all rendering.
+   */
+  async buildStatusPickerOptions(kind: "model" | "thinking" | "effort" | "budget"): Promise<
+    Array<{ key: string; label: string; description?: string; icon?: string; selected?: boolean }>
+  > {
+    if (kind === "thinking") {
+      return buildThinkingOptions(this.thinkingLevel, this.getDefaultThinking());
+    }
+    if (kind === "effort") {
+      return buildEffortOptions(this.effort || "auto");
+    }
+    if (kind === "budget") {
+      return buildBudgetOptions(this.getContextBudget());
+    }
+
+    interface ModelChoice { label: string; provider: string; modelId: string; cost?: { input: number; output: number }; contextWindow?: number }
+    let models: ModelChoice[] = [];
+    try {
+      const available = await this.getAvailableModels();
+      if (available.length > 0) {
+        models = available.map((m) => ({
+          label: m.name || m.id,
+          provider: m.provider,
+          modelId: m.id,
+          cost: m.cost,
+          contextWindow: m.contextWindow,
+        }));
+      }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
+      piWarn(`buildStatusPickerOptions(model) failed (${e.message}), using static fallback`);
+    }
+    if (models.length === 0) {
+      models = [
+        { label: "Claude Sonnet 4.5", provider: "anthropic", modelId: "claude-sonnet-4-5" },
+        { label: "Claude Haiku 4.5", provider: "anthropic", modelId: "claude-haiku-4-5" },
+        { label: "Claude Opus 4.5", provider: "anthropic", modelId: "claude-opus-4-5" },
+        { label: "GPT 4o", provider: "openai", modelId: "gpt-4o" },
+        { label: "Gemini 2.5 Pro", provider: "google", modelId: "gemini-2.5-pro" },
+        { label: "DeepSeek V3", provider: "deepseek", modelId: "deepseek-chat" },
+      ];
+    }
+    const currentId = this.model?.id;
+    const defModel = this.getDefaultModel();
+    return models.map((m) => {
+      const isDefault = Boolean(defModel && m.provider === defModel.provider && m.modelId === defModel.id);
+      const detail = m.cost || m.contextWindow
+        ? PiService.formatModelDetail(m.cost, m.contextWindow)
+        : undefined;
+      return {
+        key: `${m.provider}::${m.modelId}`,
+        label: isDefault ? `${m.label} ★` : m.label,
+        description: detail ? `${m.provider} · ${detail}` : m.provider,
+        icon: m.modelId === currentId ? "●" : undefined,
+        selected: m.modelId === currentId,
+      };
+    });
+  }
+
+  /** Apply a selection from the reusable webview status picker. */
+  async applyStatusPickerOption(kind: "model" | "thinking" | "effort" | "budget", key: string): Promise<void> {
+    if (kind === "effort") {
+      await this.setEffort(key);
+      return;
+    }
+    if (kind === "budget") {
+      const tokens = Number(key);
+      await this.setContextBudget(Number.isFinite(tokens) ? tokens : 0);
+      return;
+    }
+    if (kind === "thinking") {
+      await this.setThinkingLevel(key);
+      if (key !== this.getDefaultThinking()) {
+        const save = await vscode.window.showQuickPick(
+          [{ label: "\u2605 Save as default", description: "Use this thinking level for future sessions" }],
+          { placeHolder: `Use "${key}" thinking as the default?` },
+        );
+        if (save) { this.saveDefaultThinking(); }
+      }
+      return;
+    }
+    // model
+    const separator = key.lastIndexOf("::");
+    if (separator <= 0 || separator >= key.length - 2) { return; }
+    const provider = key.slice(0, separator);
+    const modelId = key.slice(separator + 2);
+    await this.setModel(provider, modelId);
+    const defModel = this.getDefaultModel();
+    const isDefault = Boolean(defModel && provider === defModel.provider && modelId === defModel.id);
+    if (!isDefault) {
+      const save = await vscode.window.showQuickPick(
+        [{ label: "\u2605 Save as default", description: "Use this model for future sessions" }],
+        { placeHolder: "Save this model as default?" },
+      );
+      if (save) { this.saveDefaultModel(); }
+    }
   }
 
   emitSettings(): void {
