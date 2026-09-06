@@ -2323,7 +2323,7 @@ html.pi-viewport-recovering #pi-web-app {
    expected while reading; scrolling past the end chains to the conversation). */
 .thinking-block:not(.thinking-collapsed) .thinking-content {
   display: block;
-  max-height: min(60vh, 520px);
+  max-height: min(60vh, 260px);
   overflow-y: auto;
 }
 
@@ -2334,7 +2334,7 @@ html.pi-viewport-recovering #pi-web-app {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  max-height: 320px;
+  max-height: 160px;
   overflow: hidden;
 }
 
