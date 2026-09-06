@@ -54,6 +54,27 @@ suite("Option picker helpers", () => {
     assert.ok(corner.top >= 8 && corner.top + size.height <= 900 - 8);
   });
 
+  test("caps the panel so measured height matches the placement height", () => {
+    const styles = readFileSync(
+      new URL("../../media/style.css", import.meta.url),
+      "utf8",
+    ).replace(/\r\n/g, "\n");
+    const panelBlock = styles.match(/\.option-picker \{\n[\s\S]*?\n\}/)?.[0] ?? "";
+    assert.match(panelBlock, /max-height: min\(60vh, 400px\)/);
+    assert.match(
+      styles,
+      /\.option-picker-list \{\n  flex: 1 1 auto;\n  min-height: 0;\n  overflow-y: auto;/,
+    );
+    // Placement is computed against the capped height even when content is long.
+    const tall = resolvePickerPlacement(
+      { top: 860, left: 500, right: 820, bottom: 899, width: 320, height: 39 },
+      "bottomLeft",
+      { width: 320, height: 400 },
+      { width: 1000, height: 900, margin: 8 },
+    );
+    assert.ok(tall.top >= 8 && tall.top + 400 <= 900 - 8);
+  });
+
   test("builds thinking options with current and default markers", () => {
     const options = buildThinkingOptions("low", "off");
     const low = options.find((option) => option.key === "low");
