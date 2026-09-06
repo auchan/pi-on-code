@@ -13,13 +13,19 @@ suite("Thinking block height", () => {
     assert.match(rule, /max-height: min\(60vh, 260px\)/);
   });
 
-  test("halves the live streaming tail height to 160px", () => {
-    const rule = styles.match(/\.thinking-block:has\(\.thinking-spinner\) \.thinking-content \{[\s\S]*?\n\}/)?.[0];
-    assert.ok(rule, "live thinking rule not found");
-    assert.match(rule, /max-height: 160px/);
+  test("uses the same max height for the live streaming tail", () => {
+    const reader = styles.match(/\.thinking-block:not\(\.thinking-collapsed\) \.thinking-content \{[\s\S]*?\n\}/)?.[0];
+    const live = styles.match(/\.thinking-block:has\(\.thinking-spinner\) \.thinking-content \{[\s\S]*?\n\}/)?.[0];
+    assert.ok(live, "live thinking rule not found");
+    assert.match(live, /max-height: min\(60vh, 260px\)/);
+    assert.strictEqual(
+      live?.match(/max-height: [^;]+;/)?.[0],
+      reader?.match(/max-height: [^;]+;/)?.[0],
+      "both thinking modes must cap at the same height",
+    );
   });
 
-  test("keeps scroll behaviour intact for the smaller blocks", () => {
+  test("keeps per-mode overflow behaviour intact", () => {
     const reader = styles.match(/\.thinking-block:not\(\.thinking-collapsed\) \.thinking-content \{[\s\S]*?\n\}/)?.[0];
     const live = styles.match(/\.thinking-block:has\(\.thinking-spinner\) \.thinking-content \{[\s\S]*?\n\}/)?.[0];
     assert.match(reader ?? "", /overflow-y: auto/);

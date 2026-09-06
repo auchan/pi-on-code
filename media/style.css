@@ -2327,14 +2327,15 @@ html.pi-viewport-recovering #pi-web-app {
   overflow-y: auto;
 }
 
-/* Live (spinner present): bottom-aligned latest lines, capped and clipped
-   without a nested scrollbar so the wheel always scrolls the conversation.
-   Kept last so it wins over the reader rule while the model is thinking. */
+/* Live (spinner present): bottom-aligned latest lines, capped with the same
+   max height as the finished reader and clipped without a nested scrollbar so
+   the wheel always scrolls the conversation. Kept last so it wins over the
+   reader rule while the model is thinking. */
 .thinking-block:has(.thinking-spinner) .thinking-content {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  max-height: 160px;
+  max-height: min(60vh, 260px);
   overflow: hidden;
 }
 
