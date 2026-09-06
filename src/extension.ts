@@ -1962,7 +1962,12 @@ function addSession(context: vscode.ExtensionContext, cwd = getWorkspaceCwd()): 
     void saveOpenSessionPaths();
   };
   setActiveSession(sw);
-  void sw.webviewPanel.show();
+  const withoutSplit = vscode.workspace
+    .getConfiguration("pi-on-code")
+    .get<boolean>("newSessionWithoutSplit", false);
+  // New sessions may open in the active editor group without splitting the
+  // editor area; otherwise the historical split-to-column-Two default stands.
+  void sw.webviewPanel.show(withoutSplit ? vscode.ViewColumn.Active : undefined);
   void initSessionInBackground(context, sw, { fresh: true });
 }
 

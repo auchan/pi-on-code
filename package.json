@@ -327,6 +327,11 @@
           "type": "boolean",
           "default": false,
           "description": "Automatically reveal a new Pi chat tab when the extension activates. Previously open Pi session tabs are always restored."
+        },
+        "pi-on-code.newSessionWithoutSplit": {
+          "type": "boolean",
+          "default": false,
+          "description": "Open new Pi sessions in the active editor group without splitting the editor area (default keeps the historical right-side split)."
         }
       }
     },
