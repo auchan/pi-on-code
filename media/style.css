@@ -2709,6 +2709,27 @@ html.pi-viewport-recovering #pi-web-app {
   background: var(--pi-bg);
 }
 
+.settings-open-vscode {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--pi-line);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--pi-muted);
+  font: inherit;
+  font-size: 0.85em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-open-vscode:hover,
+.settings-open-vscode:focus-visible {
+  border-color: var(--pi-lavender);
+  color: var(--pi-text);
+}
+
 .pi-dialog-btn,
 .pi-dialog-input,
 .pi-dialog-option {
