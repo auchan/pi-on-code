@@ -12,12 +12,14 @@ suite("VS Code settings entry", () => {
     assert.strictEqual(extensionSettingsQuery("  ", "  "), "@ext:auchan.pion-code");
   });
 
-  test("gear opens native settings and the panel executes the filtered command", () => {
+  test("gear opens the quick settings panel with a full VS Code settings link", () => {
     const handlers = readFileSync(
       new URL("../../src/webview/handlers/index.ts", import.meta.url),
       "utf8",
     );
     assert.match(handlers, /pi-sb-settings/);
+    assert.match(handlers, /toggleSettingsPanel\(\);/);
+    assert.match(handlers, /settings-open-vscode/);
     assert.match(handlers, /postMessage\(\{ type: "openVscodeSettings" \}\)/);
 
     const panel = readFileSync(
@@ -27,6 +29,6 @@ suite("VS Code settings entry", () => {
     assert.match(panel, /case "openVscodeSettings"/);
     assert.match(panel, /extensionSettingsQuery\(pkg\.publisher, pkg\.name\)/);
     assert.match(panel, /"workbench\.action\.openSettings"/);
-    assert.match(panel, /Open Pi on Code settings in VS Code/);
+    assert.match(panel, /Open Pi settings/);
   });
 });

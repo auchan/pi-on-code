@@ -1077,7 +1077,7 @@ export class PiWebviewPanel {
     <div class="pi-sb-item spacer"></div>
     <div class="pi-sb-item" id="pi-sb-capabilities" title="Manage capabilities for this session">capabilities: 0</div>
     <div class="pi-sb-item" id="pi-sb-usage" title="Click to set context budget">0%</div>
-    <div class="pi-sb-item" id="pi-sb-settings" title="Open Pi on Code settings in VS Code">⚙</div>
+    <div class="pi-sb-item" id="pi-sb-settings" title="Open Pi settings">⚙</div>
   </div>
   </div>
 

@@ -2213,8 +2213,9 @@ export function sendPrompt(modeOverride?: "steer" | "queue"): void {
 let sbSettings = document.getElementById("pi-sb-settings");
   if (sbSettings) {
     sbSettings.addEventListener("click", function () {
-      // Gear opens the native VS Code Settings filtered to this extension.
-      window.__vscode.postMessage({ type: "openVscodeSettings" });
+      // Gear opens the in-chat quick settings panel first; the panel links to
+      // the full native VS Code settings filtered to this extension.
+      toggleSettingsPanel();
     });
   }
 
@@ -2672,6 +2673,10 @@ export function renderSettingsPanel() {
         </div>`;
     }
 
+    // Escalation path to every Pi on Code option in the native VS Code settings.
+    result += html`
+      <button type="button" class="settings-open-vscode">Open full VS Code settings…</button>`;
+
     state.settingsOverlay.innerHTML = result;
 
     // Wire toggle clicks
@@ -2689,6 +2694,14 @@ export function renderSettingsPanel() {
         }
       });
     });
+
+    var openFull = state.settingsOverlay.querySelector(".settings-open-vscode");
+    if (openFull) {
+      openFull.addEventListener("click", function () {
+        closeAllOverlays();
+        window.__vscode.postMessage({ type: "openVscodeSettings" });
+      });
+    }
   }
 
 export function toggleSettingsPanel() {
