@@ -2213,7 +2213,8 @@ export function sendPrompt(modeOverride?: "steer" | "queue"): void {
 let sbSettings = document.getElementById("pi-sb-settings");
   if (sbSettings) {
     sbSettings.addEventListener("click", function () {
-      toggleSettingsPanel();
+      // Gear opens the native VS Code Settings filtered to this extension.
+      window.__vscode.postMessage({ type: "openVscodeSettings" });
     });
   }
 
