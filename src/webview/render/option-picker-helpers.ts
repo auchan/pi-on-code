@@ -120,8 +120,12 @@ const THINKING_LEVELS: ReadonlyArray<{ key: string; description: string }> = [
 export function buildThinkingOptions(
   current: string,
   defaultLevel: string | undefined,
+  available?: readonly string[],
 ): PickerOptionItem[] {
-  return THINKING_LEVELS.map((level) => ({
+  const levels = available && available.length > 0
+    ? THINKING_LEVELS.filter((level) => available.includes(level.key))
+    : THINKING_LEVELS;
+  return levels.map((level) => ({
     key: level.key,
     label: level.key === defaultLevel ? `${level.key} ★` : level.key,
     description: level.description,

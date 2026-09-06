@@ -95,6 +95,17 @@ suite("Option picker helpers", () => {
     assert.strictEqual(low?.selected, true);
     assert.strictEqual(low?.icon, "●");
     assert.ok(off?.label.includes("★"), "default level is starred");
+    assert.ok(options.some((option) => option.key === "xhigh"));
+  });
+
+  test("restricts thinking options to the model-supported levels", () => {
+    const options = buildThinkingOptions("medium", "off", ["off", "medium", "high", "max"]);
+    assert.deepStrictEqual(
+      options.map((option) => option.key),
+      ["off", "medium", "high", "max"],
+    );
+    assert.ok(options.every((option) => option.key !== "xhigh"));
+    assert.strictEqual(options.find((option) => option.key === "medium")?.selected, true);
   });
 
   test("builds effort and budget options with the current value marked", () => {

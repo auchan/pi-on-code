@@ -2748,7 +2748,11 @@ export class PiService {
     Array<{ key: string; label: string; description?: string; icon?: string; selected?: boolean }>
   > {
     if (kind === "thinking") {
-      return buildThinkingOptions(this.thinkingLevel, this.getDefaultThinking());
+      return buildThinkingOptions(
+        this.thinkingLevel,
+        this.getDefaultThinking(),
+        this.getSessionThinkingLevels() ?? undefined,
+      );
     }
     if (kind === "effort") {
       return buildEffortOptions(this.effort || "auto");
@@ -2831,6 +2835,20 @@ export class PiService {
     if (!isDefault) {
       const save = await this.askSaveAsDefault("Save this model as default?");
       if (save) { this.saveDefaultModel(); }
+    }
+  }
+
+  /** Thinking levels the current session/model actually supports, or null when
+   *  the capability cannot be queried (callers then fall back to the full list). */
+  private getSessionThinkingLevels(): string[] | null {
+    try {
+      const session = this.session as { getAvailableThinkingLevels?: () => unknown } | null;
+      const levels = session?.getAvailableThinkingLevels?.();
+      return Array.isArray(levels) && levels.length > 0
+        ? levels.filter((level): level is string => typeof level === "string")
+        : null;
+    } catch {
+      return null;
     }
   }
 
