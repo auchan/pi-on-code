@@ -69,7 +69,7 @@ It does not reveal a new chat tab automatically when there are no tabs to restor
 
 - VS Code 1.118 or newer.
 - Node.js 22 or newer.
-- Pi coding agent 0.80.8 through 0.82.1 (current verified compatibility
+- Pi coding agent 0.80.8 through 0.85.1 (current verified compatibility
   range).
 
 Pi 0.80.8 is the minimum supported release because Pi on Code uses the
