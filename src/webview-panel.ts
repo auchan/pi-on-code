@@ -8,6 +8,7 @@ import {
   resolveMarkdownImagePath,
 } from "./local-markdown-image.js";
 import { mergeInitialHistoryEvents } from "./history-event-sync.js";
+import { extensionSettingsQuery } from "./vscode-settings.js";
 import { SessionCapabilitySnapshot } from "./capability-snapshot.js";
 import { piError } from "./logger.js";
 import { getWorkspaceCwd } from "./workspace-context.js";
@@ -682,6 +683,19 @@ export class PiWebviewPanel {
             this.piService.emitScopedModels();
             break;
 
+          // Open the native VS Code Settings filtered to this extension
+          case "openVscodeSettings": {
+            const pkg = (this.context.extension?.packageJSON ?? {}) as {
+              publisher?: unknown;
+              name?: unknown;
+            };
+            await vscode.commands.executeCommand(
+              "workbench.action.openSettings",
+              extensionSettingsQuery(pkg.publisher, pkg.name),
+            );
+            break;
+          }
+
           // Context budget picker
           case "pickContextBudget":
             void this.triggerContextBudgetPicker();
@@ -1063,7 +1077,7 @@ export class PiWebviewPanel {
     <div class="pi-sb-item spacer"></div>
     <div class="pi-sb-item" id="pi-sb-capabilities" title="Manage capabilities for this session">capabilities: 0</div>
     <div class="pi-sb-item" id="pi-sb-usage" title="Click to set context budget">0%</div>
-    <div class="pi-sb-item" id="pi-sb-settings" title="Settings">⚙</div>
+    <div class="pi-sb-item" id="pi-sb-settings" title="Open Pi on Code settings in VS Code">⚙</div>
   </div>
   </div>
 
