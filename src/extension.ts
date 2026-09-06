@@ -15,6 +15,7 @@ import {
 } from "./session-sidebar-provider.js";
 import { initLogger, piLog, piWarn } from "./logger.js";
 import { getWorkspaceCwd, getWorkspaceFolders, getWorkspaceRoot, getWorkspaceUri } from "./workspace-context.js";
+import { parseChatPanelLocation } from "./chat-panel-location.js";
 import { registerPhase3Commands } from "./phase3-commands.js";
 import { registerPhase4Commands } from "./phase4-commands.js";
 import type { SessionSummary } from "./types.js";
@@ -1127,7 +1128,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   ): Promise<void> {
     const newSw = createSessionWindow(context, { path: forkedPath }, false, cwd);
     setActiveSession(newSw);
-    void newSw.webviewPanel.show();
+    void newSw.webviewPanel.show(chatShowColumn("chatPanelLocation"));
     sessionTreeProvider?.refresh();
 
     await initSessionInBackground(context, newSw, { openPath: forkedPath });
@@ -1373,7 +1374,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           title: summary?.name ?? summary?.firstMessage,
         }, false, summary?.cwd ?? getWorkspaceCwd());
         setActiveSession(sw);
-        await sw.webviewPanel.show();
+        await sw.webviewPanel.show(chatShowColumn("chatPanelLocation"));
         setSessionResultUnread(sw, false);
         sessionTreeProvider?.refresh();
         void initSessionInBackground(context, sw, { openPath: resolved });
@@ -1946,6 +1947,14 @@ async function doUpdatePackage(source: string): Promise<void> {
 
 // ── Add a new session window ──────────────────────────
 
+/** Column for a chat opened under the given location setting key. */
+function chatShowColumn(key: string): vscode.ViewColumn | undefined {
+  const location = parseChatPanelLocation(
+    vscode.workspace.getConfiguration("pi-on-code").get(key),
+  );
+  return location === "panel" ? vscode.ViewColumn.Active : undefined;
+}
+
 function addSession(context: vscode.ExtensionContext, cwd = getWorkspaceCwd()): void {
   const existingDraft = findReusableDraft(sessions.filter((session) => session.cwd === cwd));
   if (existingDraft) {
@@ -1962,7 +1971,7 @@ function addSession(context: vscode.ExtensionContext, cwd = getWorkspaceCwd()): 
     void saveOpenSessionPaths();
   };
   setActiveSession(sw);
-  void sw.webviewPanel.show();
+  void sw.webviewPanel.show(chatShowColumn("newChatPanelLocation"));
   void initSessionInBackground(context, sw, { fresh: true });
 }
 
