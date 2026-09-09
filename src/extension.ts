@@ -1128,7 +1128,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   ): Promise<void> {
     const newSw = createSessionWindow(context, { path: forkedPath }, false, cwd);
     setActiveSession(newSw);
-    void newSw.webviewPanel.show(chatShowColumn("chatPanelLocation"));
+    void newSw.webviewPanel.show();
     sessionTreeProvider?.refresh();
 
     await initSessionInBackground(context, newSw, { openPath: forkedPath });
@@ -1374,7 +1374,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           title: summary?.name ?? summary?.firstMessage,
         }, false, summary?.cwd ?? getWorkspaceCwd());
         setActiveSession(sw);
-        await sw.webviewPanel.show(chatShowColumn("chatPanelLocation"));
+        await sw.webviewPanel.show();
         setSessionResultUnread(sw, false);
         sessionTreeProvider?.refresh();
         void initSessionInBackground(context, sw, { openPath: resolved });

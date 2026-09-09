@@ -331,22 +331,15 @@
         "pi-on-code.newChatPanelLocation": {
           "type": "string",
           "default": "panel",
-          "enum": ["panel", "splitPanel"],
+          "enum": [
+            "panel",
+            "splitPanel"
+          ],
           "enumDescriptions": [
             "Open brand-new Pi chats as tabs in the active editor group without splitting the editor area.",
             "Open brand-new Pi chats in a new editor group split to the right of the active group."
           ],
           "description": "Where brand-new Pi chats open in the editor."
-        },
-        "pi-on-code.chatPanelLocation": {
-          "type": "string",
-          "default": "splitPanel",
-          "enum": ["panel", "splitPanel"],
-          "enumDescriptions": [
-            "Open resumed/forked Pi chats as tabs in the active editor group without splitting the editor area.",
-            "Open resumed/forked Pi chats in a new editor group split to the right of the active group (historical default)."
-          ],
-          "description": "Where resumed and forked Pi chats open in the editor."
         }
       }
     },
