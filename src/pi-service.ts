@@ -14,6 +14,13 @@ import {
   buildEffortOptions,
   buildThinkingOptions,
 } from "./webview/render/option-picker-helpers.js";
+import {
+  DEFAULT_MODEL_LIST_REFRESH_MINUTES,
+  getSharedModelListRefreshedAt,
+  markModelListRefreshed,
+  modelListRefreshMaxAgeMs,
+  shouldRefreshModelList,
+} from "./model-refresh.js";
 import { buildScopedModels, completeWithModelRuntime, getRuntimeModel, selectInitialModel } from "./pi-model-runtime.js";
 import { buildConversationTurnPreviews } from "./conversation-turns.js";
 import { type ImageContent, type PiServiceEvent, validateExtensionToWebview } from "./types.js";
@@ -403,6 +410,7 @@ export class PiService {
   private SDK: PiSdk | null = null;
   private modelRuntime: any = null;
   private modelRegistry: any = null;
+  private modelListRefreshPromise: Promise<void> | null = null;
   private settingsManager: any = null;
   private sessionManager: any = null;
   private resourceLoader: any = null;
@@ -2639,6 +2647,7 @@ export class PiService {
 
   /** Open a QuickPick to choose a model, set it on this session, and optionally save as default. */
   async pickModel(): Promise<boolean> {
+    await this.ensureModelListFresh();
     interface ModelItem { label: string; provider: string; modelId: string; cost?: { input: number; output: number }; contextWindow?: number }
     let models: ModelItem[] = [];
 
@@ -2757,6 +2766,46 @@ export class PiService {
   }
 
   /**
+   * Refresh the model registry when the cached list is older than the
+   * configured staleness window (pi-on-code.modelListRefreshMinutes, default
+   * 30; 0 disables). Concurrent callers share one in-flight refresh.
+   */
+  private async ensureModelListFresh(): Promise<void> {
+    const minutes = vscode.workspace
+      .getConfiguration("pi-on-code")
+      .get<number>("modelListRefreshMinutes", DEFAULT_MODEL_LIST_REFRESH_MINUTES);
+    const maxAgeMs = modelListRefreshMaxAgeMs(minutes);
+    if (!this.modelRegistry) { return; }
+    if (!shouldRefreshModelList(getSharedModelListRefreshedAt(), Date.now(), maxAgeMs)) { return; }
+    if (this.modelListRefreshPromise) { return this.modelListRefreshPromise; }
+    this.modelListRefreshPromise = (async () => {
+      try {
+        await this.modelRegistry.refresh();
+        markModelListRefreshed(Date.now());
+        // Cycling reads cycleModels, so rebuild it from the fresh registry.
+        await this.rebuildCycleModels();
+      } catch (error: unknown) {
+        piWarn(`model list refresh failed: ${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        this.modelListRefreshPromise = null;
+      }
+    })();
+    return this.modelListRefreshPromise;
+  }
+
+  /** Rebuild the model-cycling order from the current registry contents. */
+  private async rebuildCycleModels(): Promise<void> {
+    try {
+      const available = await this.getAvailableModels();
+      if (available.length > 0) {
+        this.cycleModels = available.map((m) => ({ provider: m.provider, id: m.id }));
+      }
+    } catch (error: unknown) {
+      piWarn(`cycle model list refresh failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
    * JSON payload for the reusable webview status picker. Labels are plain text
    * (no VS Code codicon markup); selection and default markers are conveyed
    * via `selected` and the ★ suffix so the webview owns all rendering.
@@ -2780,6 +2829,7 @@ export class PiService {
 
     interface ModelChoice { label: string; provider: string; modelId: string; cost?: { input: number; output: number }; contextWindow?: number }
     let models: ModelChoice[] = [];
+    await this.ensureModelListFresh();
     try {
       const available = await this.getAvailableModels();
       if (available.length > 0) {
