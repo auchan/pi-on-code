@@ -328,7 +328,7 @@
           "default": false,
           "description": "Automatically reveal a new Pi chat tab when the extension activates. Previously open Pi session tabs are always restored."
         },
-        "pi-on-code.newChatPanelLocation": {
+        "pi-on-code.chatPanelLocation": {
           "type": "string",
           "default": "panel",
           "enum": [
@@ -336,10 +336,10 @@
             "splitPanel"
           ],
           "enumDescriptions": [
-            "Open brand-new Pi chats as tabs in the active editor group without splitting the editor area.",
-            "Open brand-new Pi chats in a new editor group split to the right of the active group."
+            "Open Pi chats (new, resumed, and forked) as tabs in the active editor group without splitting the editor area.",
+            "Open Pi chats (new, resumed, and forked) in a new editor group split to the right of the active group."
           ],
-          "description": "Where brand-new Pi chats open in the editor."
+          "description": "Where Pi chats open in the editor: as a tab in the active group, or split to the right."
         }
       }
     },

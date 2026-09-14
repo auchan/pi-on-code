@@ -18,7 +18,7 @@ suite("Chat panel location", () => {
     assert.strictEqual(parseChatPanelLocation("splitPanel"), "splitPanel");
   });
 
-  test("publishes only the single newChatPanelLocation property", () => {
+  test("publishes exactly one chatPanelLocation property defaulting to panel", () => {
     const manifest = JSON.parse(
       readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
     ) as {
@@ -28,26 +28,27 @@ suite("Chat panel location", () => {
         };
       };
     };
-    const property = manifest.contributes.configuration.properties["pi-on-code.newChatPanelLocation"];
-    assert.ok(property, "pi-on-code.newChatPanelLocation property is missing");
+    const properties = manifest.contributes.configuration.properties;
+    const property = properties["pi-on-code.chatPanelLocation"];
+    assert.ok(property, "pi-on-code.chatPanelLocation property is missing");
     assert.strictEqual(property.default, "panel");
     assert.deepStrictEqual(property.enum, ["panel", "splitPanel"]);
     assert.ok(
-      !("pi-on-code.chatPanelLocation" in manifest.contributes.configuration.properties),
-      "the duplicate chatPanelLocation property must be gone",
+      !("pi-on-code.newChatPanelLocation" in properties),
+      "the duplicate newChatPanelLocation property must be gone",
     );
   });
 
-  test("new chats honor newChatPanelLocation; resume/fork use the default column", () => {
+  test("new, resumed, and forked chats all follow chatPanelLocation", () => {
     const extension = readFileSync(
       new URL("../../src/extension.ts", import.meta.url),
       "utf8",
     );
-    assert.match(extension, /chatShowColumn\("newChatPanelLocation"\)/);
-    assert.doesNotMatch(extension, /chatShowColumn\("chatPanelLocation"\)/);
-    assert.doesNotMatch(extension, /"chatPanelLocation"/);
-    // Resume and fork fall back to the plain historical default show().
-    assert.match(extension, /void newSw\.webviewPanel\.show\(\);/);
-    assert.match(extension, /await sw\.webviewPanel\.show\(\);/);
+    assert.match(extension, /void sw\.webviewPanel\.show\(chatShowColumn\("chatPanelLocation"\)\);/);
+    assert.match(extension, /void newSw\.webviewPanel\.show\(chatShowColumn\("chatPanelLocation"\)\);/);
+    assert.match(extension, /await sw\.webviewPanel\.show\(chatShowColumn\("chatPanelLocation"\)\);/);
+    assert.doesNotMatch(extension, /newChatPanelLocation/);
+    const occurrences = extension.match(/chatShowColumn\("chatPanelLocation"\)/g)?.length ?? 0;
+    assert.strictEqual(occurrences, 3, "new, resume, and fork must share the single setting");
   });
 });
