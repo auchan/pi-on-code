@@ -340,6 +340,12 @@
             "Open Pi chats (new, resumed, and forked) in a new editor group split to the right of the active group."
           ],
           "description": "Where Pi chats open in the editor: as a tab in the active group, or split to the right."
+        },
+        "pi-on-code.modelListRefreshMinutes": {
+          "type": "number",
+          "default": 30,
+          "minimum": 0,
+          "description": "Minutes after which opening the model list refreshes it from the provider registry. 0 disables auto refresh."
         }
       }
     },
