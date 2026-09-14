@@ -16,6 +16,8 @@ import {
 } from "./webview/render/option-picker-helpers.js";
 import {
   DEFAULT_MODEL_LIST_REFRESH_MINUTES,
+  getSharedModelListRefreshedAt,
+  markModelListRefreshed,
   modelListRefreshMaxAgeMs,
   shouldRefreshModelList,
 } from "./model-refresh.js";
@@ -408,8 +410,6 @@ export class PiService {
   private SDK: PiSdk | null = null;
   private modelRuntime: any = null;
   private modelRegistry: any = null;
-  /** Epoch ms of the last model-list refresh (null = never refreshed). */
-  private modelListRefreshedAt: number | null = null;
   private modelListRefreshPromise: Promise<void> | null = null;
   private settingsManager: any = null;
   private sessionManager: any = null;
@@ -2647,6 +2647,7 @@ export class PiService {
 
   /** Open a QuickPick to choose a model, set it on this session, and optionally save as default. */
   async pickModel(): Promise<boolean> {
+    await this.ensureModelListFresh();
     interface ModelItem { label: string; provider: string; modelId: string; cost?: { input: number; output: number }; contextWindow?: number }
     let models: ModelItem[] = [];
 
@@ -2775,12 +2776,14 @@ export class PiService {
       .get<number>("modelListRefreshMinutes", DEFAULT_MODEL_LIST_REFRESH_MINUTES);
     const maxAgeMs = modelListRefreshMaxAgeMs(minutes);
     if (!this.modelRegistry) { return; }
-    if (!shouldRefreshModelList(this.modelListRefreshedAt, Date.now(), maxAgeMs)) { return; }
+    if (!shouldRefreshModelList(getSharedModelListRefreshedAt(), Date.now(), maxAgeMs)) { return; }
     if (this.modelListRefreshPromise) { return this.modelListRefreshPromise; }
     this.modelListRefreshPromise = (async () => {
       try {
         await this.modelRegistry.refresh();
-        this.modelListRefreshedAt = Date.now();
+        markModelListRefreshed(Date.now());
+        // Cycling reads cycleModels, so rebuild it from the fresh registry.
+        await this.rebuildCycleModels();
       } catch (error: unknown) {
         piWarn(`model list refresh failed: ${error instanceof Error ? error.message : String(error)}`);
       } finally {
@@ -2788,6 +2791,18 @@ export class PiService {
       }
     })();
     return this.modelListRefreshPromise;
+  }
+
+  /** Rebuild the model-cycling order from the current registry contents. */
+  private async rebuildCycleModels(): Promise<void> {
+    try {
+      const available = await this.getAvailableModels();
+      if (available.length > 0) {
+        this.cycleModels = available.map((m) => ({ provider: m.provider, id: m.id }));
+      }
+    } catch (error: unknown) {
+      piWarn(`cycle model list refresh failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   /**

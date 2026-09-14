@@ -19,6 +19,26 @@ export function modelListRefreshMaxAgeMs(minutes: unknown): number {
  * shown. A max age of 0 disables auto refresh; a never-refreshed list is
  * always considered stale.
  */
+/**
+ * Process-wide timestamp of the last successful refresh. The registry is
+ * shared runtime data, so the staleness window must span session windows
+ * rather than reset for every new PiService instance.
+ */
+let sharedModelListRefreshedAt: number | null = null;
+
+export function getSharedModelListRefreshedAt(): number | null {
+  return sharedModelListRefreshedAt;
+}
+
+export function markModelListRefreshed(now: number): void {
+  sharedModelListRefreshedAt = now;
+}
+
+/** Test hook: forget the shared refresh timestamp. */
+export function resetModelListRefreshClock(): void {
+  sharedModelListRefreshedAt = null;
+}
+
 export function shouldRefreshModelList(
   lastRefreshedAt: number | null,
   now: number,
