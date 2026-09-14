@@ -1971,7 +1971,7 @@ function addSession(context: vscode.ExtensionContext, cwd = getWorkspaceCwd()): 
     void saveOpenSessionPaths();
   };
   setActiveSession(sw);
-  void sw.webviewPanel.show(chatShowColumn("newChatPanelLocation"));
+  void sw.webviewPanel.show(chatShowColumn("chatPanelLocation"));
   void initSessionInBackground(context, sw, { fresh: true });
 }
 

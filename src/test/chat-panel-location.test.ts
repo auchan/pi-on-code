@@ -6,50 +6,49 @@ import {
 } from "../chat-panel-location.js";
 
 suite("Chat panel location", () => {
-  test("defaults to splitPanel for missing or invalid values", () => {
-    assert.strictEqual(DEFAULT_CHAT_PANEL_LOCATION, "splitPanel");
-    assert.strictEqual(parseChatPanelLocation(undefined), "splitPanel");
-    assert.strictEqual(parseChatPanelLocation("sidebar-left"), "splitPanel");
-    assert.strictEqual(parseChatPanelLocation(42), "splitPanel");
+  test("defaults to panel for missing or invalid values", () => {
+    assert.strictEqual(DEFAULT_CHAT_PANEL_LOCATION, "panel");
+    assert.strictEqual(parseChatPanelLocation(undefined), "panel");
+    assert.strictEqual(parseChatPanelLocation("sidebar-left"), "panel");
+    assert.strictEqual(parseChatPanelLocation(42), "panel");
   });
 
-  test("accepts the two documented locations", () => {
+  test("accepts the two editor placements", () => {
     assert.strictEqual(parseChatPanelLocation("panel"), "panel");
     assert.strictEqual(parseChatPanelLocation("splitPanel"), "splitPanel");
   });
 
-  test("publishes new (panel) and resume/fork (splitPanel) properties", () => {
+  test("publishes exactly one chatPanelLocation property defaulting to panel", () => {
     const manifest = JSON.parse(
       readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
     ) as {
       contributes: {
         configuration: {
-          properties: Record<string, {
-            default: unknown;
-            enum?: unknown[];
-            enumDescriptions?: unknown[];
-          }>;
+          properties: Record<string, { default?: unknown; enum?: unknown[] }>;
         };
       };
     };
-    const newProp = manifest.contributes.configuration.properties["pi-on-code.newChatPanelLocation"];
-    const resumeProp = manifest.contributes.configuration.properties["pi-on-code.chatPanelLocation"];
-    assert.ok(newProp, "pi-on-code.newChatPanelLocation property is missing");
-    assert.strictEqual(newProp.default, "panel");
-    assert.deepStrictEqual(newProp.enum, ["panel", "splitPanel"]);
-    assert.ok(resumeProp, "pi-on-code.chatPanelLocation property is missing");
-    assert.strictEqual(resumeProp.default, "splitPanel");
-    assert.deepStrictEqual(resumeProp.enum, ["panel", "splitPanel"]);
+    const properties = manifest.contributes.configuration.properties;
+    const property = properties["pi-on-code.chatPanelLocation"];
+    assert.ok(property, "pi-on-code.chatPanelLocation property is missing");
+    assert.strictEqual(property.default, "panel");
+    assert.deepStrictEqual(property.enum, ["panel", "splitPanel"]);
+    assert.ok(
+      !("pi-on-code.newChatPanelLocation" in properties),
+      "the duplicate newChatPanelLocation property must be gone",
+    );
   });
 
-  test("routes new chats through newChatPanelLocation and resumes/forks through chatPanelLocation", () => {
+  test("new, resumed, and forked chats all follow chatPanelLocation", () => {
     const extension = readFileSync(
       new URL("../../src/extension.ts", import.meta.url),
       "utf8",
     );
-    assert.match(extension, /function chatShowColumn\(key: string\)/);
-    assert.match(extension, /sw\.webviewPanel\.show\(chatShowColumn\("newChatPanelLocation"\)\)/);
-    assert.match(extension, /newSw\.webviewPanel\.show\(chatShowColumn\("chatPanelLocation"\)\)/);
-    assert.match(extension, /await sw\.webviewPanel\.show\(chatShowColumn\("chatPanelLocation"\)\)/);
+    assert.match(extension, /void sw\.webviewPanel\.show\(chatShowColumn\("chatPanelLocation"\)\);/);
+    assert.match(extension, /void newSw\.webviewPanel\.show\(chatShowColumn\("chatPanelLocation"\)\);/);
+    assert.match(extension, /await sw\.webviewPanel\.show\(chatShowColumn\("chatPanelLocation"\)\);/);
+    assert.doesNotMatch(extension, /newChatPanelLocation/);
+    const occurrences = extension.match(/chatShowColumn\("chatPanelLocation"\)/g)?.length ?? 0;
+    assert.strictEqual(occurrences, 3, "new, resume, and fork must share the single setting");
   });
 });
