@@ -14,6 +14,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  pi-sdk:
+    name: Pi 1.5.0 / Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install verified Pi stable SDK
+        run: npm install --global --prefix "$RUNNER_TEMP/pi-sdk" --ignore-scripts --no-audit --no-fund @earendil-works/pi-coding-agent@1.5.0
+      - name: Verify offline SDK compatibility
+        run: node scripts/smoke-pi-sdk.mjs
+        env:
+          PI_SDK_PATH: ${{ runner.temp }}/pi-sdk/lib/node_modules/@earendil-works/pi-coding-agent
+
   validate:
     name: validate
     runs-on: ubuntu-latest
