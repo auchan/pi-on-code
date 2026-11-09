@@ -2353,7 +2353,7 @@ async function installPi(): Promise<void> {
   return new Promise((resolve) => {
     const term = vscode.window.createTerminal("Pi Install");
     term.show();
-    term.sendText("npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.85.1");
+    term.sendText("npm install -g --ignore-scripts @earendil-works/pi-coding-agent@1.5.0");
     term.sendText(
       'echo "✅ Pi SDK installed! Reload VS Code to use Pi on Code."',
     );

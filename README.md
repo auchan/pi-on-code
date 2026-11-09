@@ -68,20 +68,21 @@ It does not reveal a new chat tab automatically when there are no tabs to restor
 ## Requirements
 
 - VS Code 1.118 or newer.
-- Node.js 22 or newer.
-- Pi coding agent 0.80.8 through 0.85.1 (current verified compatibility
-  range).
+- Node.js 22.19 or newer (required by Pi 1.5.0).
+- Pi coding agent 1.5.0 (current verified stable release).
 
 Pi 0.80.8 is the minimum supported release because Pi on Code uses the
 `ModelRuntime`-based SDK introduced in [Pi 0.80.8](https://pi.dev/news/releases/0.80.8).
-The required Session, Extension Runner, Package Manager, and Settings APIs have
-been verified through Pi 0.85.1. See the [Pi release notes](https://pi.dev/news)
-for upstream changes.
+Compatibility was previously checked through Pi 0.85.1; the current baseline is
+Pi 1.5.0. Offline SDK checks cover session creation, streamed turns, tool schema
+coercion and execution, RPC extension binding, package management, and legacy
+session restoration. See the [Pi release notes](https://pi.dev/news) for upstream changes.
+Run `bun run test:pi-sdk` against an installed SDK, or set `PI_SDK_PATH` to its package root.
 
 Install the latest compatible Pi release globally:
 
 ```powershell
-npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.85.1
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent@1.5.0
 ```
 
 Authenticate Pi from a terminal first, run `Pi: Set Up API Key / Login`, or use

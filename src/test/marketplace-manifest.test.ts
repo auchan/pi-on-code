@@ -29,7 +29,15 @@ suite("Marketplace manifest", () => {
     assert.strictEqual(manifest.publisher, "auchan");
     assert.strictEqual(manifest.name, "pion-code");
     assert.strictEqual(manifest.displayName, "Pi / Code");
-    assert.strictEqual(manifest.version, "0.2.13");
+    assert.strictEqual(manifest.version, "0.2.14");
+  });
+
+  test("pins the verified Pi stable release in installation guidance", () => {
+    for (const file of ["src/extension.ts", "README.md", "README.zh-CN.md"]) {
+      const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
+      assert.ok(source.includes("npm install -g --ignore-scripts @earendil-works/pi-coding-agent@1.5.0"), file);
+    }
+    assert.strictEqual(manifest.scripts?.["test:pi-sdk"], "node scripts/smoke-pi-sdk.mjs");
   });
 
   test("requires a trusted filesystem workspace", () => {

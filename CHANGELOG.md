@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.14
+
+- Update the Pi installation command and compatibility baseline to stable pi-coding-agent 1.5.0 (Node.js 22.19+).
+- Verify real SDK session creation, streamed turns, TypeBox schema coercion and tool execution, RPC extension binding, package management, and persisted/legacy session restoration with an isolated offline smoke test that never opens user sessions.
+- Run the Pi 1.5.0 compatibility smoke test in CI using Node.js 22 and 24.
+
 ## 0.2.13
 
 - Edit and fork historical user messages: change an earlier prompt (guarded while a run is active) or fork the session from any user message, with a fork divider that keeps resumed and live-turn forks anchored; repeated identical prompts are supported.
